@@ -32,10 +32,10 @@ const BADGE_TYPES = [
 ];
 
 const FIRST_NAMES = [
-  'Chrissy', 'Liam', 'Emma', 'Noah', 'Ava', 'Ethan', 'Sophia', 'Mason',
-  'Isabella', 'Lucas', 'Mia', 'Elijah', 'Amelia', 'James', 'Harper',
-  'Benjamin', 'Evelyn', 'Henry', 'Luna', 'Alexander', 'Ella', 'Sebastian',
-  'Grace', 'Jack', 'Chloe', 'Owen', 'Aria', 'Daniel', 'Scarlett', 'Matthew',
+  'Chrissy', 'Marm', 'Kevin', 'Lena', 'Zayne', 'Nicole', 'Shin', 'Lenny',
+  'TK', 'Adrian', 'Luke', 'Bowen', 'Kai', 'Nat', 'Chris',
+  'Izutsumi', 'Obama', 'Jason', 'Alejandro', 'YoMama', 'Knightro', 'Orange',
+  'Sebastian', 'Carlos', 'Arthur', 'Dylan', 'Sarayu', 'Daniel', 'Scarlett', 'Gab',
 ];
 
 function getRandomName(i: number) {
