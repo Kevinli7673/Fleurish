@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { File } from "expo-file-system";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as Location from "expo-location";
@@ -13,11 +13,12 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
@@ -43,6 +44,7 @@ export default function CameraScreen() {
   const cameraRef = useRef<CameraView>(null);
 
   const [permission, requestPermission] = useCameraPermissions();
+  const [facing, setFacing] = useState<CameraType>("back");
   const [step, setStep] = useState<Step>("camera");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [plantResult, setPlantResult] = useState<PlantResult | null>(null);
@@ -229,6 +231,10 @@ export default function CameraScreen() {
     router.back();
   };
 
+  const toggleFacing = () => {
+    setFacing((prev) => (prev === "back" ? "front" : "back"));
+  };
+
   const handleRetake = () => {
     setPhotoUri(null);
     setPlantResult(null);
@@ -282,47 +288,69 @@ export default function CameraScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        {/* Modal Header */}
-        <View style={styles.modalHeader}>
-          <ThemedText type="smallBold" style={styles.headerTitle}>
-            {step === "camera" && "Identify Plant"}
-            {step === "identifying" && "Analyzing Sighting"}
-            {(step === "result" || step === "unidentified") && "Scan Results"}
-            {step === "saving" && "Saving Find"}
-          </ThemedText>
-          <Pressable style={styles.closeButton} onPress={cancelFlow}>
-            <MaterialCommunityIcons name="close" size={24} color={theme.text} />
-          </Pressable>
-        </View>
+        {/* Modal Header (camera step has its own top bar) */}
+        {step !== "camera" && (
+          <View style={styles.modalHeader}>
+            <ThemedText type="smallBold" style={styles.headerTitle}>
+              {step === "identifying" && "Analyzing Sighting"}
+              {(step === "result" || step === "unidentified") && "Scan Results"}
+              {step === "saving" && "Saving Find"}
+            </ThemedText>
+            <Pressable style={styles.closeButton} onPress={cancelFlow}>
+              <MaterialCommunityIcons name="close" size={24} color={theme.text} />
+            </Pressable>
+          </View>
+        )}
 
         {/* Step 1: Camera Active */}
         {step === "camera" && (
           <View style={styles.cameraContainer}>
-            <CameraView style={styles.camera} ref={cameraRef}>
-              <View style={styles.cameraOverlay}>
-                {error && (
-                  <View style={styles.errorBanner}>
-                    <ThemedText style={styles.errorText} type="small">
-                      {error}
-                    </ThemedText>
-                  </View>
-                )}
-                
-                {/* Control Actions */}
-                <View style={styles.cameraControls}>
-                  <Pressable
-                    style={[styles.iconButton, { backgroundColor: "rgba(0,0,0,0.5)" }]}
-                    onPress={pickFromGallery}
-                  >
-                    <MaterialCommunityIcons name="image" size={24} color="#ffffff" />
-                  </Pressable>
+            <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
+              {/* Top bar */}
+              <View style={styles.topBar}>
+                <Pressable style={styles.backButton} onPress={cancelFlow}>
+                  <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                </Pressable>
+                <Text style={styles.topBarTitle}>Identification</Text>
+                <View style={styles.backButton} />
+              </View>
 
-                  <Pressable style={styles.shutterButton} onPress={capturePhoto}>
-                    <View style={styles.shutterInner} />
-                  </Pressable>
-
-                  <View style={{ width: 50 }} /> {/* Spacer */}
+              {error && (
+                <View style={styles.errorBanner}>
+                  <ThemedText style={styles.errorText} type="small">
+                    {error}
+                  </ThemedText>
                 </View>
+              )}
+
+              {/* Viewfinder frame */}
+              <View style={styles.viewfinderWrapper}>
+                <View style={styles.viewfinder}>
+                  <View style={[styles.corner, styles.cornerTL]} />
+                  <View style={[styles.corner, styles.cornerTR]} />
+                  <View style={[styles.corner, styles.cornerBL]} />
+                  <View style={[styles.corner, styles.cornerBR]} />
+                </View>
+              </View>
+
+              {/* Mode selector */}
+              <View style={styles.modeRow}>
+                <Text style={[styles.modeText, styles.modeTextActive]}>Identify</Text>
+              </View>
+
+              {/* Bottom controls */}
+              <View style={styles.bottomBar}>
+                <Pressable style={styles.sideButton} onPress={pickFromGallery}>
+                  <MaterialCommunityIcons name="image-outline" size={24} color="#FFFFFF" />
+                </Pressable>
+
+                <Pressable style={styles.shutterButton} onPress={capturePhoto}>
+                  <View style={styles.shutterInner} />
+                </Pressable>
+
+                <Pressable style={styles.sideButton} onPress={toggleFacing}>
+                  <MaterialCommunityIcons name="camera-flip-outline" size={24} color="#FFFFFF" />
+                </Pressable>
               </View>
             </CameraView>
           </View>
@@ -562,39 +590,91 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
   },
-  cameraOverlay: {
-    flex: 1,
-    justifyContent: "space-between",
-    padding: Spacing.four,
-  },
-  cameraControls: {
+  topBar: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.three,
+    justifyContent: "space-between",
+    paddingTop: Spacing.two,
+    paddingHorizontal: 20,
   },
-  iconButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  backButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  topBarTitle: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  viewfinderWrapper: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewfinder: {
+    width: 220,
+    height: 220,
+  },
+  corner: {
+    position: "absolute",
+    width: 28,
+    height: 28,
+    borderColor: "#FFFFFF",
+  },
+  cornerTL: { top: 0, left: 0, borderTopWidth: 2, borderLeftWidth: 2 },
+  cornerTR: { top: 0, right: 0, borderTopWidth: 2, borderRightWidth: 2 },
+  cornerBL: { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2 },
+  cornerBR: { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2 },
+  modeRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 20,
+    gap: 24,
+  },
+  modeText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  modeTextActive: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
+  bottomBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 40,
+    paddingBottom: Spacing.five,
+  },
+  sideButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
   shutterButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(255,255,255,0.3)",
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 4,
+    borderColor: "rgba(255,255,255,0.5)",
     alignItems: "center",
     justifyContent: "center",
   },
   shutterInner: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    backgroundColor: "#ffffff",
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: "#E8637A",
   },
   errorBanner: {
+    marginHorizontal: Spacing.four,
     backgroundColor: "#e5484d",
     borderRadius: Spacing.two,
     paddingHorizontal: Spacing.three,
