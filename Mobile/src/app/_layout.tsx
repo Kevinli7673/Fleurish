@@ -12,13 +12,17 @@ export default function RootLayout() {
   useEffect(() => {
     if (isLoading) return;
 
-    const inTabsGroup = segments[0] === '(tabs)';
+    const segs = segments as string[];
+    const currentRoute = segs[0] || 'index';
+    const isAuthScreen = ['login', 'signup', 'verify', 'forgpassword'].includes(currentRoute) || 
+                         (segs.length === 1 && currentRoute === 'index') || 
+                         segs.length === 0;
 
-    if (session && !inTabsGroup) {
-      // Redirect to tabs if logged in
+    if (session && isAuthScreen) {
+      // Redirect to tabs if logged in and trying to access auth screens
       router.replace('/(tabs)');
-    } else if (!session && inTabsGroup) {
-      // Redirect to landing if not logged in
+    } else if (!session && !isAuthScreen) {
+      // Redirect to landing if not logged in and trying to access app screens
       router.replace('/');
     }
   }, [session, isLoading, segments]);
