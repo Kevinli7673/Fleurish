@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  ImageBackground,
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,12 +19,32 @@ const COLORS = {
   gradient: ['#FCEDEB', '#F7F1E6', '#F6FDF3'] as const,
 };
 
-// --- Mock data. Swap for real API data once the backend is wired up. ---
+// --- Mock data. Swap `image` paths + fields for real API data once wired up. ---
 const NEARBY_BLOOMS = [
-  { id: '1', name: 'Cherry Sage', distance: '0.3 mi', color: '#E7BFC6' },
-  { id: '2', name: 'Star Jasmine', distance: '0.3 mi', color: '#B7B98C' },
-  { id: '3', name: 'Monstera', distance: '0.3 mi', color: '#E7BFC6' },
-  { id: '4', name: 'Lavender', distance: '0.6 mi', color: '#C9B7E0' },
+  {
+    id: '1',
+    name: 'Cherry Sage',
+    distance: '0.3 mi',
+    image: require('@/assets/images/cherrysage.jpg'),
+  },
+  {
+    id: '2',
+    name: 'Star Jasmine',
+    distance: '0.3 mi',
+    image: require('@/assets/images/starjasmine.jpg'),
+  },
+  {
+    id: '3',
+    name: 'Monstera',
+    distance: '0.3 mi',
+    image: require('@/assets/images/monstera.jpg'),
+  },
+  {
+    id: '4',
+    name: 'Lavender',
+    distance: '0.6 mi',
+    image: require('@/assets/images/lavender.jpg'),
+  },
 ];
 
 const FRIEND_UPDATE = {
@@ -32,18 +53,22 @@ const FRIEND_UPDATE = {
   note: 'Thrives in indirect light and loves humidity. Keep soil moist and she\u2019ll reward you with her rosy leaves.',
   loggedBy: 'Anna',
   match: '98% match',
-  color: '#7A9B6E',
+  image: require('@/assets/images/calathea.jpg'),
 };
 
 export default function Feed() {
   const router = useRouter();
 
   return (
-    <View style={styles.screen}>
+    <ImageBackground
+      source={require('@/assets/images/profile.png')}
+      style={styles.screen}
+      resizeMode="cover"
+    >
       <LinearGradient
         colors={COLORS.gradient}
         locations={[0, 0.5, 1]}
-        style={StyleSheet.absoluteFill}
+        style={[StyleSheet.absoluteFill, { opacity: 0.4 }]}
       />
 
       <ScrollView
@@ -67,8 +92,21 @@ export default function Feed() {
           style={styles.bloomCard}
           onPress={() => router.push('/camera')}
         >
+          <Image
+            source={require('@/assets/images/meadow.png')}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
           <LinearGradient
-            colors={['rgba(255,244,240,0.9)', 'rgba(255,255,255,0.55)']}
+            colors={[
+              'rgba(255,221,212,1)',
+              'rgba(255,235,230,0.97)',
+              'rgba(255,241,220,0.9)',
+              'rgba(255,235,230,0)',
+            ]}
+            locations={[0, 0.25, 0.47, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill}
           />
           <View style={styles.bloomTextWrap}>
@@ -97,7 +135,10 @@ export default function Feed() {
         >
           {NEARBY_BLOOMS.map((plant) => (
             <Pressable key={plant.id} style={styles.nearbyCard}>
-              <View style={[styles.nearbyImage, { backgroundColor: plant.color }]} />
+              <View style={styles.nearbyImageWrap}>
+                <Image source={plant.image} style={styles.nearbyImage} resizeMode="cover" />
+                <View style={styles.nearbyBadge} />
+              </View>
               <Text style={styles.nearbyName}>{plant.name}</Text>
               <View style={styles.nearbyLocationRow}>
                 <MaterialCommunityIcons
@@ -112,13 +153,14 @@ export default function Feed() {
         </ScrollView>
 
         {/* From your friends */}
-        <View style={styles.sectionHeaderRow}>
-          <MaterialCommunityIcons name="account-group-outline" size={18} color={COLORS.text} />
-          <Text style={styles.sectionHeader}>From your friends</Text>
-        </View>
+        {/* From your friends */}
+      <View style={[styles.sectionHeaderRow, { marginTop: 45 }]}>
+        <MaterialCommunityIcons name="account-group-outline" size={18} color={COLORS.text} />
+        <Text style={styles.sectionHeader}>From your friends</Text>
+      </View>
 
         <View style={styles.friendCard}>
-          <View style={[styles.friendImage, { backgroundColor: FRIEND_UPDATE.color }]} />
+          <Image source={FRIEND_UPDATE.image} style={styles.friendImage} resizeMode="cover" />
           <View style={styles.friendInfo}>
             <Text style={styles.friendPlantName}>{FRIEND_UPDATE.name}</Text>
             <View style={styles.friendLocationRow}>
@@ -147,9 +189,10 @@ export default function Feed() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </ImageBackground>
   );
 }
+
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F7F1E6' },
@@ -195,17 +238,16 @@ const styles = StyleSheet.create({
     minHeight: 170,
     justifyContent: 'center',
     marginBottom: 26,
-    backgroundColor: '#F3D9C9',
   },
   bloomTextWrap: { padding: 22 },
   bloomTitle: {
-    fontFamily: 'Author-Bold',
+    fontFamily: 'Author-Variable',
     fontSize: 26,
     fontWeight: '700',
     marginBottom: 6,
   },
   bloomSubtitle: {
-    fontFamily: 'PlayfairDisplay_400Regular',
+    fontFamily: 'AUthor-Variable',
     fontSize: 17,
     color: '#1B391C',
     lineHeight: 22,
@@ -222,7 +264,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   bloomButtonText: {
-    fontFamily: 'Author-Bold',
+    fontFamily: 'Author-Variable',
     color: '#FFF',
     fontSize: 15,
   },
@@ -234,28 +276,45 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionHeader: {
-    fontFamily: 'PlayfairDisplay_600SemiBold',
+    fontFamily: 'Author-Variable',
     fontSize: 18,
     color: '#1B391C',
   },
 
   nearbyRow: { gap: 14, paddingBottom: 4, paddingRight: 8 },
   nearbyCard: { width: 130 },
-  nearbyImage: {
+  nearbyImageWrap: {
     width: 130,
     height: 130,
     borderRadius: 16,
     marginBottom: 8,
+    marginTop: 10,
+    overflow: 'hidden',
+  },
+  nearbyImage: {
+    width: '100%',
+    height: '100%',
+  },
+  nearbyBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   nearbyName: {
-    fontFamily: 'Author-Bold',
+    fontFamily: 'Author-Variable',
     fontSize: 15,
     color: '#1B391C',
     marginBottom: 2,
   },
   nearbyLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   nearbyDistance: {
-    fontFamily: 'Author-Bold',
+    fontFamily: 'Author-Variable',
     fontSize: 12,
     color: '#D9637A',
   },
@@ -263,9 +322,9 @@ const styles = StyleSheet.create({
   friendCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
+    borderRadius: 5,
     padding: 14,
-    marginTop: 22,
+    marginTop: 4,
     gap: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
