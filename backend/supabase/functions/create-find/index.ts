@@ -63,7 +63,7 @@ Deno.serve(async (req) => {
       .select(`
         *,
         plants (*),
-        profiles (*)
+        profiles!finds_user_id_fkey (*)
       `)
       .single();
 
