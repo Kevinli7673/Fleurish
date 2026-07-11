@@ -142,7 +142,6 @@ export default function Profile() {
           source={require('@/assets/images/FlowerMonet.png')}
           style={styles.profileBanner}
           imageStyle={[styles.profileBannerImage, { opacity: 0.4 }]}
-          resizeMode="cover"
         >
           {profileContext.photoUri ? (
             <Image source={{ uri: profileContext.photoUri }} style={styles.avatarImage} />
@@ -307,6 +306,7 @@ const styles = StyleSheet.create({
   profileBannerImage: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
   },
   avatar: {
     width: 100,
