@@ -1,4 +1,5 @@
-import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 
 import { supabase } from '@/lib/supabase';
 
@@ -63,9 +64,9 @@ export async function getProfile(userId: string): Promise<ProfileWithStats> {
 export async function uploadAvatar(localUri: string): Promise<string> {
   const myId = await getMyUserId();
 
-  let bytes: Uint8Array;
+  let base64: string;
   try {
-    bytes = await new File(localUri).bytes();
+    base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
   } catch {
     throw new Error('Could not read that image.');
   }
@@ -74,7 +75,7 @@ export async function uploadAvatar(localUri: string): Promise<string> {
   const path = `${myId}/${Date.now()}.jpg`;
   const { error: uploadError } = await supabase.storage
     .from('avatars')
-    .upload(path, bytes, { contentType: 'image/jpeg' });
+    .upload(path, decode(base64), { contentType: 'image/jpeg' });
   if (uploadError) throw new Error('Could not upload your avatar.');
 
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
