@@ -1,4 +1,5 @@
-import { File } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
 import { supabase } from '@/lib/supabase';
@@ -71,7 +72,7 @@ async function toDataUrl(photoUri: string): Promise<string> {
   const context = ImageManipulator.manipulate(photoUri).resize({ width: 1024 });
   const rendered = await context.renderAsync();
   const saved = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
-  const base64 = await new File(saved.uri).base64();
+  const base64 = await FileSystem.readAsStringAsync(saved.uri, { encoding: 'base64' });
   return `data:image/jpeg;base64,${base64}`;
 }
 
@@ -103,9 +104,9 @@ export async function identifyPlant(photoUri: string): Promise<IdentifiedPlant> 
 export async function uploadFindPhoto(localUri: string): Promise<string> {
   const myId = await getMyUserId();
 
-  let bytes: Uint8Array;
+  let base64: string;
   try {
-    bytes = await new File(localUri).bytes();
+    base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
   } catch {
     throw new Error('Could not read that photo.');
   }
@@ -113,7 +114,7 @@ export async function uploadFindPhoto(localUri: string): Promise<string> {
   const path = `${myId}/${Date.now()}.jpg`;
   const { error } = await supabase.storage
     .from('plant-photos')
-    .upload(path, bytes, { contentType: 'image/jpeg' });
+    .upload(path, decode(base64), { contentType: 'image/jpeg' });
   if (error) throw new Error('Could not upload your photo.');
 
   return supabase.storage.from('plant-photos').getPublicUrl(path).data.publicUrl;
