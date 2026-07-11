@@ -2,6 +2,7 @@ import React from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { View, Pressable, StyleSheet, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts } from 'expo-font';
 import {
   PlayfairDisplay_400Regular,
@@ -11,6 +12,10 @@ import {
 const PINK = '#D9637A';
 const INACTIVE = '#9CA7A0';
 const DARK_TEXT = '#1B391C';
+
+// FAB gradient — matches the web mockup's `linear-gradient(135deg,#E8778A,#D9637A)`.
+// start/end below approximate a 135deg angle (top-left -> bottom-right).
+const FAB_GRADIENT = ['#E8778A', '#D9637A'] as const;
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -67,11 +72,17 @@ export default function TabsLayout() {
               <Pressable
                 onPress={() => router.push('/camera')}
                 style={({ pressed }) => [
-                  styles.cameraButton,
                   pressed && { transform: [{ scale: 0.94 }] },
                 ]}
               >
-                <MaterialCommunityIcons name="plus" color="#FFF" size={30} />
+                <LinearGradient
+                  colors={FAB_GRADIENT}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.cameraButton}
+                >
+                  <MaterialCommunityIcons name="plus" color="#FFF" size={30} />
+                </LinearGradient>
               </Pressable>
             </View>
           ),
@@ -126,7 +137,6 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: PINK,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -26,

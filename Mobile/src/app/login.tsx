@@ -94,6 +94,7 @@ export default function Login() {
                 color="#8A8A8A"
               />
             </Pressable>
+
           </View>
 
           <Pressable style={styles.forgotWrapper}
@@ -101,7 +102,10 @@ export default function Login() {
 >           <Text style={styles.forgotText}>Forgot Password?</Text>
           </Pressable>
 
-          <Pressable style={styles.primaryButton}>
+          <Pressable
+            style={styles.primaryButton}
+            onPress={() => router.replace('/(tabs)')}
+          >
             <Text style={styles.primaryButtonText}>Let's go!</Text>
           </Pressable>
 
