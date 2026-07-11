@@ -82,7 +82,7 @@ export default function Feed() {
               id: f.id,
               name: f.plants?.common_name ?? 'Unknown Plant',
               distance: f.city || 'Nearby',
-              image: f.photo_url ? { uri: f.photo_url } : require('@/assets/images/plants/monstera.jpg'),
+              image: f.photo_url ? { uri: f.photo_url } : require('@/assets/images/monstera.jpg'),
             }));
             setNearbyFinds(mappedNearby);
 
@@ -95,7 +95,7 @@ export default function Feed() {
                 note: highlight.caption || 'Logged a new plant sighting!',
                 loggedBy: highlight.profiles?.username || 'Sprout Finder',
                 match: highlight.confidence ? `${Math.round(Number(highlight.confidence) * 100)}% match` : 'AI match',
-                image: highlight.photo_url ? { uri: highlight.photo_url } : require('@/assets/images/plants/monstera.jpg'),
+                image: highlight.photo_url ? { uri: highlight.photo_url } : require('@/assets/images/monstera.jpg'),
               });
             }
           }

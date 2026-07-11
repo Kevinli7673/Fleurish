@@ -73,7 +73,7 @@ export default function PlantResult() {
 
   const photoSource = params.photoUri
     ? { uri: params.photoUri }
-    : require('@/assets/images/plants/monstera.jpg'); // fallback sample photo
+    : require('@/assets/images/monstera.jpg'); // fallback sample photo
 
   return (
     <View style={styles.screen}>
