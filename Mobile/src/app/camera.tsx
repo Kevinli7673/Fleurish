@@ -1,52 +1,122 @@
-import React, { useRef, useState } from 'react';
+import { useRouter } from "expo-router";
+import { decode } from "base64-arraybuffer";
+import * as FileSystem from "expo-file-system";
+import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as Location from "expo-location";
+import { useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  Alert,
   ActivityIndicator,
-} from 'react-native';
-import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+  Alert,
+  Image,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
-export default function Camera() {
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
+import { supabase } from "@/lib/supabase";
+
+type Step = "camera" | "identifying" | "result" | "unidentified" | "saving";
+
+type PlantResult = {
+  plant_id: string;
+  common_name: string;
+  scientific_name: string;
+  confidence: number;
+  care_tips: string;
+  light_requirement: string;
+  water_requirement: string;
+};
+
+export default function CameraScreen() {
   const router = useRouter();
+  const theme = useTheme();
   const cameraRef = useRef<CameraView>(null);
+
   const [permission, requestPermission] = useCameraPermissions();
-  const [facing, setFacing] = useState<CameraType>('back');
-  const [loading, setLoading] = useState(false);
+  const [facing, setFacing] = useState<CameraType>("back");
+  const [step, setStep] = useState<Step>("camera");
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [plantResult, setPlantResult] = useState<PlantResult | null>(null);
+  const [caption, setCaption] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
+  // Request permissions or fallback
   if (!permission) {
-    // Permissions are still loading
-    return <View style={styles.loadingContainer} />;
-  }
-
-  if (!permission.granted) {
     return (
-      <View style={styles.permissionContainer}>
-        <MaterialCommunityIcons name="camera-off-outline" size={48} color="#4B6355" />
-        <Text style={styles.permissionText}>
-          Fleurish needs camera access to identify plants.
-        </Text>
-        <Pressable style={styles.permissionButton} onPress={requestPermission}>
-          <Text style={styles.permissionButtonText}>Grant Access</Text>
-        </Pressable>
-        <Pressable style={styles.permissionBackButton} onPress={() => router.back()}>
-          <Text style={styles.permissionBackText}>Go back</Text>
-        </Pressable>
-      </View>
+      <ThemedView style={styles.centerContainer}>
+        <ActivityIndicator size="large" color={theme.text} />
+      </ThemedView>
     );
   }
 
-  const processImage = async (uri: string) => {
-    setLoading(true);
+  // Pick an image from gallery
+  const pickFromGallery = async () => {
     try {
-      console.log('Resizing image...');
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please enable media library access in settings to upload photos.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Settings", onPress: () => Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.9,
+      });
+
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        processImage(result.assets[0].uri);
+      }
+    } catch (err: any) {
+      setError("Failed to open image gallery");
+      console.error(err);
+    }
+  };
+
+  // Take photo with camera
+  const capturePhoto = async () => {
+    if (!cameraRef.current) return;
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.9,
+        skipProcessing: false,
+      });
+      if (photo?.uri) {
+        processImage(photo.uri);
+      }
+    } catch (err: any) {
+      setError("Failed to capture photo from camera");
+      console.error(err);
+    }
+  };
+
+  // Process and identify the image
+  const processImage = async (uri: string) => {
+    setPhotoUri(uri);
+    setStep("identifying");
+    setError(null);
+
+    try {
+      console.log("Resizing image...");
       const manipulated = await ImageManipulator.manipulateAsync(
         uri,
         [{ resize: { width: 1024 } }],
@@ -54,278 +124,678 @@ export default function Camera() {
       );
 
       if (!manipulated.base64) {
-        throw new Error('Failed to encode image to base64');
+        throw new Error("Failed to encode image to base64");
       }
 
       const base64DataUrl = `data:image/jpeg;base64,${manipulated.base64}`;
 
-      console.log('Calling identify-plant edge function...');
+      console.log("Calling identify-plant edge function...");
       const { data, error: functionError } = await supabase.functions.invoke(
-        'identify-plant',
+        "identify-plant",
         {
           body: { image: base64DataUrl },
         }
       );
 
       if (functionError) {
-        throw new Error(functionError.message || 'Failed to identify plant');
+        console.error("Function error:", functionError);
+        if (functionError.status === 404) {
+          setStep("unidentified");
+          return;
+        }
+        throw new Error(functionError.message || "Failed to identify plant");
       }
 
-      console.log('Identification successful! Navigating...');
-      router.push({
-        pathname: '/plantident',
-        params: {
-          photoUri: uri,
-          result: JSON.stringify(data),
-        },
-      });
+      setPlantResult(data);
+      setStep("result");
     } catch (err: any) {
-      Alert.alert('Identification failed', err.message || 'Could not scan this plant. Please try again.');
-    } finally {
-      setLoading(false);
+      setError(err.message || "An error occurred during plant identification");
+      setStep("camera");
     }
   };
 
-  const handleCapture = async () => {
-    if (!cameraRef.current) return;
+  // Upload photo to Supabase Storage and create a find record
+  const saveFind = async () => {
+    if (!photoUri) return;
+    setStep("saving");
+    setError(null);
+
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
-      if (photo?.uri) {
-        await processImage(photo.uri);
+      let lat = 0;
+      let lng = 0;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          lat = loc.coords.latitude;
+          lng = loc.coords.longitude;
+        }
+      } catch (locationErr) {
+        console.warn("Could not retrieve GPS coordinates:", locationErr);
       }
-    } catch (err) {
-      Alert.alert('Something went wrong', 'Could not capture the photo. Try again.');
+
+      const sessionRes = await supabase.auth.getSession();
+      const userId = sessionRes.data.session?.user?.id;
+      if (!userId) {
+        throw new Error("No active user session found");
+      }
+
+      const fileName = `${userId}/${Date.now()}.jpg`;
+      const base64 = await FileSystem.readAsStringAsync(photoUri, {
+        encoding: "base64",
+      });
+
+      console.log("Uploading photo to Supabase Storage...");
+      const { error: uploadErr } = await supabase.storage
+        .from("plant-photos")
+        .upload(fileName, decode(base64), {
+          contentType: "image/jpeg",
+        });
+
+      if (uploadErr) {
+        throw new Error(`Storage upload failed: ${uploadErr.message}`);
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("plant-photos")
+        .getPublicUrl(fileName);
+
+      console.log("Creating database find record...");
+      const { error: createError } = await supabase.functions.invoke(
+        "create-find",
+        {
+          body: {
+            photo_url: publicUrl,
+            lat,
+            lng,
+            plant_id: plantResult?.plant_id || null,
+            caption: caption,
+            is_public: true,
+          },
+        }
+      );
+
+      if (createError) {
+        throw new Error(createError.message || "Failed to create plant find record");
+      }
+
+      console.log("Sighting successfully saved!");
+      // Redirect back to Garden / Feed
+      router.replace("/(tabs)/(tabs)");
+    } catch (err: any) {
+      setError(err.message || "Failed to save sighting");
+      setStep(plantResult ? "result" : "unidentified");
     }
   };
 
-  const handlePickFromGallery = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert(
-        'Photo access needed',
-        'Allow photo library access to choose an existing picture.'
-      );
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.85,
-    });
-
-    if (!result.canceled && result.assets?.length) {
-      await processImage(result.assets[0].uri);
-    }
+  const cancelFlow = () => {
+    router.back();
   };
 
   const toggleFacing = () => {
-    setFacing((prev) => (prev === 'back' ? 'front' : 'back'));
+    setFacing((prev) => (prev === "back" ? "front" : "back"));
   };
 
-  if (loading) {
+  const handleRetake = () => {
+    setPhotoUri(null);
+    setPlantResult(null);
+    setCaption("");
+    setError(null);
+    setStep("camera");
+  };
+
+  // Render Camera Permission Gate
+  if (!permission.granted) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F1E6' }]}>
-        <ActivityIndicator size="large" color="#2F4F3E" />
-        <Text style={{ marginTop: 16, fontSize: 16, fontWeight: '600', color: '#2F4F3E', fontFamily: 'Author-Variable' }}>
-          Scanning plant details...
-        </Text>
-      </View>
+      <ThemedView style={styles.permissionContainer}>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.modalHeader}>
+            <Pressable style={styles.closeButton} onPress={cancelFlow}>
+              <MaterialCommunityIcons name="close" size={24} color={theme.text} />
+            </Pressable>
+          </View>
+          <View style={styles.permissionContent}>
+            <ThemedText style={styles.permissionEmoji}>📸</ThemedText>
+            <ThemedText type="subtitle" style={styles.permissionTitle}>
+              Camera Access
+            </ThemedText>
+            <ThemedText style={styles.permissionDesc}>
+              Patch needs permission to use your camera so you can take photos of plants to identify them.
+            </ThemedText>
+            
+            <Pressable
+              style={[styles.primaryButton, { backgroundColor: theme.text }]}
+              onPress={requestPermission}
+            >
+              <ThemedText themeColor="background" type="smallBold">
+                Allow Camera
+              </ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+              onPress={pickFromGallery}
+            >
+              <ThemedText style={{ color: theme.text }} type="smallBold">
+                Pick from Gallery
+              </ThemedText>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </ThemedView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
-        {/* Top bar */}
-        <View style={styles.topBar}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </Pressable>
-          <Text style={styles.topBarTitle}>Identification</Text>
-          <View style={styles.backButton} />
-        </View>
-
-        {/* Viewfinder frame */}
-        <View style={styles.viewfinderWrapper}>
-          <View style={styles.viewfinder}>
-            <View style={[styles.corner, styles.cornerTL]} />
-            <View style={[styles.corner, styles.cornerTR]} />
-            <View style={[styles.corner, styles.cornerBL]} />
-            <View style={[styles.corner, styles.cornerBR]} />
+    <ThemedView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        {/* Modal Header (camera step has its own top bar) */}
+        {step !== "camera" && (
+          <View style={styles.modalHeader}>
+            <ThemedText type="smallBold" style={styles.headerTitle}>
+              {step === "identifying" && "Analyzing Sighting"}
+              {(step === "result" || step === "unidentified") && "Scan Results"}
+              {step === "saving" && "Saving Find"}
+            </ThemedText>
+            <Pressable style={styles.closeButton} onPress={cancelFlow}>
+              <MaterialCommunityIcons name="close" size={24} color={theme.text} />
+            </Pressable>
           </View>
-        </View>
+        )}
 
-        {/* Mode selector */}
-        <View style={styles.modeRow}>
-          <Text style={[styles.modeText, styles.modeTextActive]}>Identify</Text>
-        </View>
+        {/* Step 1: Camera Active */}
+        {step === "camera" && (
+          <View style={styles.cameraContainer}>
+            <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
+              {/* Top bar */}
+              <View style={styles.topBar}>
+                <Pressable style={styles.backButton} onPress={cancelFlow}>
+                  <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                </Pressable>
+                <Text style={styles.topBarTitle}>Identification</Text>
+                <View style={styles.backButton} />
+              </View>
 
-        {/* Bottom controls */}
-        <View style={styles.bottomBar}>
-          <Pressable style={styles.sideButton} onPress={handlePickFromGallery}>
-            <MaterialCommunityIcons name="image-outline" size={24} color="#FFFFFF" />
-          </Pressable>
+              {error && (
+                <View style={styles.errorBanner}>
+                  <ThemedText style={styles.errorText} type="small">
+                    {error}
+                  </ThemedText>
+                </View>
+              )}
 
-          <Pressable style={styles.shutterButton} onPress={handleCapture}>
-            <View style={styles.shutterInner} />
-          </Pressable>
+              {/* Viewfinder frame */}
+              <View style={styles.viewfinderWrapper}>
+                <View style={styles.viewfinder}>
+                  <View style={[styles.corner, styles.cornerTL]} />
+                  <View style={[styles.corner, styles.cornerTR]} />
+                  <View style={[styles.corner, styles.cornerBL]} />
+                  <View style={[styles.corner, styles.cornerBR]} />
+                </View>
+              </View>
 
-          <Pressable style={styles.sideButton} onPress={toggleFacing}>
-            <MaterialCommunityIcons name="camera-flip-outline" size={24} color="#FFFFFF" />
-          </Pressable>
-        </View>
-      </CameraView>
-    </View>
+              {/* Mode selector */}
+              <View style={styles.modeRow}>
+                <Text style={[styles.modeText, styles.modeTextActive]}>Identify</Text>
+              </View>
+
+              {/* Bottom controls */}
+              <View style={styles.bottomBar}>
+                <Pressable style={styles.sideButton} onPress={pickFromGallery}>
+                  <MaterialCommunityIcons name="image-outline" size={24} color="#FFFFFF" />
+                </Pressable>
+
+                <Pressable style={styles.shutterButton} onPress={capturePhoto}>
+                  <View style={styles.shutterInner} />
+                </Pressable>
+
+                <Pressable style={styles.sideButton} onPress={toggleFacing}>
+                  <MaterialCommunityIcons name="camera-flip-outline" size={24} color="#FFFFFF" />
+                </Pressable>
+              </View>
+            </CameraView>
+          </View>
+        )}
+
+        {/* Step 2: Spinner / Identifying */}
+        {step === "identifying" && (
+          <View style={styles.loadingContainer}>
+            {photoUri && <Image source={{ uri: photoUri }} style={styles.previewImageFull} />}
+            <View style={[styles.loadingOverlay, { backgroundColor: "rgba(0,0,0,0.6)" }]}>
+              <ActivityIndicator size="large" color="#ffffff" />
+              <ThemedText style={styles.loadingText} type="smallBold">
+                Scanning details...
+              </ThemedText>
+              <ThemedText style={styles.loadingSubtext} type="small">
+                Gemini and Plant.id are matching features
+              </ThemedText>
+            </View>
+          </View>
+        )}
+
+        {/* Step 3: Success Result card */}
+        {step === "result" && plantResult && photoUri && (
+          <ScrollView contentContainerStyle={styles.resultScroll} showsVerticalScrollIndicator={false}>
+            <Image source={{ uri: photoUri }} style={styles.resultPreviewImage} />
+
+            <View style={styles.resultCard}>
+              <View style={styles.resultHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <ThemedText type="subtitle" style={styles.plantName}>
+                    {plantResult.common_name}
+                  </ThemedText>
+                  <ThemedText style={[styles.scientificName, { color: theme.textSecondary }]}>
+                    {plantResult.scientific_name}
+                  </ThemedText>
+                </View>
+                <View style={[styles.badge, { backgroundColor: theme.backgroundElement }]}>
+                  <ThemedText type="smallBold" style={{ color: "#30a46c" }}>
+                    {Math.round(plantResult.confidence * 100)}% Match
+                  </ThemedText>
+                </View>
+              </View>
+
+              {/* Plant Stats */}
+              <View style={styles.requirementsRow}>
+                <View style={[styles.reqBadge, { backgroundColor: theme.backgroundElement }]}>
+                  <ThemedText type="small" style={styles.reqText}>
+                    ☀️ {plantResult.light_requirement}
+                  </ThemedText>
+                </View>
+                <View style={[styles.reqBadge, { backgroundColor: theme.backgroundElement }]}>
+                  <ThemedText type="small" style={styles.reqText}>
+                    💧 {plantResult.water_requirement}
+                  </ThemedText>
+                </View>
+              </View>
+
+              <ThemedText type="smallBold" style={styles.sectionTitle}>
+                Care Instructions
+              </ThemedText>
+              <ThemedText style={[styles.careTips, { color: theme.textSecondary }]} type="small">
+                {plantResult.care_tips}
+              </ThemedText>
+
+              {/* Add Caption */}
+              <TextInput
+                style={[
+                  styles.captionInput,
+                  { color: theme.text, backgroundColor: theme.backgroundElement },
+                ]}
+                placeholder="Add a caption to this spotting..."
+                placeholderTextColor={theme.textSecondary}
+                value={caption}
+                onChangeText={setCaption}
+                multiline
+              />
+
+              {error && (
+                <ThemedText style={styles.errorText} type="small">
+                  {error}
+                </ThemedText>
+              )}
+
+              {/* Actions */}
+              <View style={styles.actionsContainer}>
+                <Pressable
+                  style={[styles.primaryButton, { backgroundColor: theme.text, flex: 1 }]}
+                  onPress={saveFind}
+                >
+                  <ThemedText themeColor="background" type="smallBold">
+                    Save to Garden
+                  </ThemedText>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                  onPress={handleRetake}
+                >
+                  <ThemedText style={{ color: theme.text }} type="smallBold">
+                    Retake
+                  </ThemedText>
+                </Pressable>
+              </View>
+            </View>
+          </ScrollView>
+        )}
+
+        {/* Step 4: Unidentified result */}
+        {step === "unidentified" && photoUri && (
+          <ScrollView contentContainerStyle={styles.resultScroll} showsVerticalScrollIndicator={false}>
+            <Image source={{ uri: photoUri }} style={styles.resultPreviewImage} />
+
+            <View style={styles.resultCard}>
+              <ThemedText type="subtitle" style={styles.plantName}>
+                Could not identify plant
+              </ThemedText>
+              <ThemedText style={[styles.careTips, { color: theme.textSecondary, marginTop: Spacing.one }]} type="small">
+                We couldn't get a clear match on this species. Try taking the picture from a closer angle, with better lighting, or centered on a single leaf.
+              </ThemedText>
+
+              <TextInput
+                style={[
+                  styles.captionInput,
+                  { color: theme.text, backgroundColor: theme.backgroundElement },
+                ]}
+                placeholder="Add a name or caption manually..."
+                placeholderTextColor={theme.textSecondary}
+                value={caption}
+                onChangeText={setCaption}
+                multiline
+              />
+
+              {error && (
+                <ThemedText style={styles.errorText} type="small">
+                  {error}
+                </ThemedText>
+              )}
+
+              <View style={styles.actionsContainer}>
+                <Pressable
+                  style={[styles.primaryButton, { backgroundColor: theme.text, flex: 1 }]}
+                  onPress={saveFind}
+                >
+                  <ThemedText themeColor="background" type="smallBold">
+                    Save Sighting Anyway
+                  </ThemedText>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.secondaryButton, { borderColor: theme.textSecondary }]}
+                  onPress={handleRetake}
+                >
+                  <ThemedText style={{ color: theme.text }} type="smallBold">
+                    Retake
+                  </ThemedText>
+                </Pressable>
+              </View>
+            </View>
+          </ScrollView>
+        )}
+
+        {/* Step 5: Saving Screen */}
+        {step === "saving" && (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={theme.text} />
+            <ThemedText style={{ marginTop: Spacing.three }} type="smallBold">
+              Saving to your collection...
+            </ThemedText>
+            <ThemedText style={{ color: theme.textSecondary, marginTop: Spacing.one }} type="small">
+              Uploading picture and updating your streaks
+            </ThemedText>
+          </View>
+        )}
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  permissionContainer: {
+    flex: 1,
+  },
+  permissionContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: Spacing.five,
+    gap: Spacing.three,
+  },
+  permissionEmoji: {
+    fontSize: 72,
+    marginBottom: Spacing.two,
+  },
+  permissionTitle: {
+    textAlign: "center",
+  },
+  permissionDesc: {
+    textAlign: "center",
+    lineHeight: 22,
+    paddingHorizontal: Spacing.three,
+    marginBottom: Spacing.three,
+  },
+  modalHeader: {
+    height: 60,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.four,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(0,0,0,0.1)",
+  },
+  headerTitle: {
+    fontSize: 18,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cameraContainer: {
+    flex: 1,
+    overflow: "hidden",
   },
   camera: {
     flex: 1,
   },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  permissionContainer: {
-    flex: 1,
-    backgroundColor: '#F7F1E6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  permissionText: {
-    fontSize: 15,
-    color: '#2F4F3E',
-    textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  permissionButton: {
-    backgroundColor: '#E8A83D',
-    borderRadius: 24,
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    marginBottom: 16,
-  },
-  permissionButtonText: {
-    color: '#2F4F3E',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  permissionBackButton: {
-    paddingVertical: 8,
-  },
-  permissionBackText: {
-    color: '#4B6355',
-    textDecorationLine: 'underline',
-    fontSize: 14,
-  },
   topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: '10%',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: Spacing.two,
     paddingHorizontal: 20,
   },
   backButton: {
     width: 36,
     height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   topBarTitle: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   viewfinderWrapper: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   viewfinder: {
     width: 220,
     height: 220,
   },
   corner: {
-    position: 'absolute',
+    position: "absolute",
     width: 28,
     height: 28,
-    borderColor: '#FFFFFF',
+    borderColor: "#FFFFFF",
   },
-  cornerTL: {
-    top: 0,
-    left: 0,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
-  },
-  cornerTR: {
-    top: 0,
-    right: 0,
-    borderTopWidth: 2,
-    borderRightWidth: 2,
-  },
-  cornerBL: {
-    bottom: 0,
-    left: 0,
-    borderBottomWidth: 2,
-    borderLeftWidth: 2,
-  },
-  cornerBR: {
-    bottom: 0,
-    right: 0,
-    borderBottomWidth: 2,
-    borderRightWidth: 2,
-  },
+  cornerTL: { top: 0, left: 0, borderTopWidth: 2, borderLeftWidth: 2 },
+  cornerTR: { top: 0, right: 0, borderTopWidth: 2, borderRightWidth: 2 },
+  cornerBL: { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2 },
+  cornerBR: { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2 },
   modeRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     marginBottom: 20,
     gap: 24,
   },
   modeText: {
-    color: 'rgba(255,255,255,0.6)',
+    color: "rgba(255,255,255,0.6)",
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   modeTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    textDecorationLine: 'underline',
+    color: "#FFFFFF",
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
   bottomBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 40,
-    paddingBottom: '8%',
+    paddingBottom: Spacing.five,
   },
   sideButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   shutterButton: {
     width: 72,
     height: 72,
     borderRadius: 36,
     borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: "rgba(255,255,255,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   shutterInner: {
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: '#E8637A',
+    backgroundColor: "#E8637A",
+  },
+  errorBanner: {
+    marginHorizontal: Spacing.four,
+    backgroundColor: "#e5484d",
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    marginTop: Spacing.three,
+  },
+  errorText: {
+    color: "#ffffff",
+    textAlign: "center",
+  },
+  loadingContainer: {
+    flex: 1,
+    position: "relative",
+  },
+  previewImageFull: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+  },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  loadingText: {
+    color: "#ffffff",
+    fontSize: 18,
+  },
+  loadingSubtext: {
+    color: "rgba(255,255,255,0.7)",
+  },
+  resultScroll: {
+    paddingBottom: Spacing.five,
+    maxWidth: MaxContentWidth,
+    alignSelf: "center",
+    width: "100%",
+  },
+  resultPreviewImage: {
+    width: "100%",
+    height: 300,
+    resizeMode: "cover",
+  },
+  resultCard: {
+    padding: Spacing.four,
+    gap: Spacing.three,
+  },
+  resultHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.two,
+  },
+  plantName: {
+    lineHeight: 34,
+  },
+  scientificName: {
+    fontSize: 16,
+    fontStyle: "italic",
+    marginTop: 2,
+  },
+  badge: {
+    borderRadius: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.half,
+  },
+  requirementsRow: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    marginTop: Spacing.half,
+  },
+  reqBadge: {
+    borderRadius: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+  },
+  reqText: {
+    fontSize: 13,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    marginTop: Spacing.two,
+  },
+  careTips: {
+    lineHeight: 20,
+  },
+  captionInput: {
+    borderRadius: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.three,
+    fontSize: 15,
+    minHeight: 80,
+    textAlignVertical: "top",
+    marginTop: Spacing.two,
+  },
+  primaryButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    height: 48,
+  },
+  secondaryButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.three,
+    paddingHorizontal: Spacing.four,
+    borderWidth: 1,
+    height: 48,
+  },
+  actionsContainer: {
+    flexDirection: "row",
+    gap: Spacing.three,
+    marginTop: Spacing.four,
   },
 });
