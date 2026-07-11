@@ -1,180 +1,281 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ExternalLink } from '@/components/external-link';
+import { FeedRow, type FeedEvent } from '@/components/feed-row';
+import { LeaderboardRow, type Ranking } from '@/components/leaderboard-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { useSession } from '@/hooks/use-session';
 import { useTheme } from '@/hooks/use-theme';
+import { supabase } from '@/lib/supabase';
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
-  };
+type Section = 'feed' | 'leaderboard';
+type Scope = 'week' | 'all_time';
+type Group = 'global' | 'friends';
+
+function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
   const theme = useTheme();
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
+  return (
+    <View style={[styles.segmented, { backgroundColor: theme.backgroundElement }]}>
+      {options.map((option) => (
+        <Pressable
+          key={option.value}
+          onPress={() => onChange(option.value)}
+          style={[
+            styles.segment,
+            option.value === value && { backgroundColor: theme.backgroundSelected },
+          ]}>
+          <ThemedText
+            type={option.value === value ? 'smallBold' : 'small'}
+            themeColor={option.value === value ? 'text' : 'textSecondary'}>
+            {option.label}
+          </ThemedText>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+export default function ExploreScreen() {
+  const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const { session } = useSession();
+  const userId = session?.user.id;
+
+  const [section, setSection] = useState<Section>('feed');
+  const [scope, setScope] = useState<Scope>('week');
+  const [group, setGroup] = useState<Group>('global');
+
+  const [feed, setFeed] = useState<FeedEvent[] | null>(null);
+  const [rankings, setRankings] = useState<Ranking[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchFeed = useCallback(async () => {
+    const { data, error: dbError } = await supabase
+      .from('feed_events')
+      .select(
+        'id, type, created_at, profiles(username, avatar_url), finds(id, photo_url, caption, plants(common_name))'
+      )
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (dbError) throw new Error(dbError.message);
+    setFeed((data ?? []) as unknown as FeedEvent[]);
+  }, []);
+
+  const fetchLeaderboard = useCallback(async () => {
+    let friendGroup: string[] | null = null;
+    if (group === 'friends') {
+      const { data: rows, error: dbError } = await supabase
+        .from('friendships')
+        .select('user_id, friend_id')
+        .eq('status', 'accepted');
+      if (dbError) throw new Error(dbError.message);
+      const ids = new Set<string>(userId ? [userId] : []);
+      for (const row of rows ?? []) {
+        ids.add(row.user_id === userId ? row.friend_id : row.user_id);
+      }
+      friendGroup = [...ids];
+    }
+    const { data, error: fnError } = await supabase.functions.invoke('get-leaderboard', {
+      body: { scope, friend_group: friendGroup },
+    });
+    if (fnError) throw new Error('Could not load the leaderboard.');
+    setRankings((data?.rankings ?? []) as Ranking[]);
+  }, [group, scope, userId]);
+
+  const load = useCallback(
+    async (asRefresh = false) => {
+      setError(null);
+      if (asRefresh) setRefreshing(true);
+      else setLoading(true);
+      try {
+        if (section === 'feed') await fetchFeed();
+        else await fetchLeaderboard();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Something went wrong.');
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
     },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
+    [section, fetchFeed, fetchLeaderboard]
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  const hasData = section === 'feed' ? feed !== null : rankings !== null;
+
+  const listPadding = {
+    paddingBottom: insets.bottom + BottomTabInset + Spacing.three,
+  };
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
+    <ThemedView style={styles.container}>
+      <View style={[styles.content, { paddingTop: insets.top + Spacing.three }]}>
+        <ThemedText type="subtitle" style={styles.title}>
+          Explore
+        </ThemedText>
+        <Segmented<Section>
+          options={[
+            { value: 'feed', label: 'Feed' },
+            { value: 'leaderboard', label: 'Leaderboard' },
+          ]}
+          value={section}
+          onChange={setSection}
+        />
+        {section === 'leaderboard' && (
+          <View style={styles.filters}>
+            <Segmented<Scope>
+              options={[
+                { value: 'week', label: 'This week' },
+                { value: 'all_time', label: 'All time' },
+              ]}
+              value={scope}
+              onChange={setScope}
+            />
+            <Segmented<Group>
+              options={[
+                { value: 'global', label: 'Global' },
+                { value: 'friends', label: 'Friends' },
+              ]}
+              value={group}
+              onChange={setGroup}
+            />
+          </View>
+        )}
 
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
-
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
+        {error ? (
+          <View style={styles.centered}>
+            <ThemedText type="small" style={styles.error}>
+              {error}
             </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
+            <Pressable
+              style={[styles.retryButton, { backgroundColor: theme.text }]}
+              onPress={() => load()}>
+              <ThemedText themeColor="background" type="smallBold">
+                Retry
               </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
-            </ThemedView>
-          </Collapsible>
-
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
+            </Pressable>
+          </View>
+        ) : loading && !hasData ? (
+          <View style={styles.centered}>
+            <ActivityIndicator color={theme.text} />
+          </View>
+        ) : section === 'feed' ? (
+          <FlatList
+            data={feed ?? []}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <FeedRow event={item} />}
+            contentContainerStyle={[styles.list, listPadding]}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={theme.text} />
+            }
+            ListEmptyComponent={
+              <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+                No activity yet — go spot some plants!
+              </ThemedText>
+            }
+          />
+        ) : (
+          <FlatList
+            data={rankings ?? []}
+            keyExtractor={(item) => item.user_id}
+            renderItem={({ item, index }) => (
+              <LeaderboardRow rank={index + 1} ranking={item} isSelf={item.user_id === userId} />
+            )}
+            contentContainerStyle={[styles.list, listPadding]}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={theme.text} />
+            }
+            ListEmptyComponent={
+              <ThemedText themeColor="textSecondary" style={styles.emptyText}>
+                {group === 'friends'
+                  ? 'No finds from you or your friends yet.'
+                  : 'No finds yet — be the first on the board!'}
+              </ThemedText>
+            }
+          />
+        )}
+      </View>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollView: {
+  container: {
     flex: 1,
-  },
-  contentContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
   },
-  container: {
+  content: {
+    flex: 1,
     maxWidth: MaxContentWidth,
-    flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
     paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
+    gap: Spacing.three,
   },
-  centerText: {
+  title: {
     textAlign: 'center',
   },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
+  segmented: {
     flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
+    borderRadius: Spacing.two,
+    padding: Spacing.half,
+  },
+  segment: {
+    flex: 1,
+    alignItems: 'center',
     paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
+    borderRadius: Spacing.two - Spacing.half,
+  },
+  filters: {
+    gap: Spacing.two,
+  },
+  list: {
+    gap: Spacing.two,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.one,
-    alignItems: 'center',
+    gap: Spacing.three,
   },
-  sectionsWrapper: {
-    gap: Spacing.five,
+  error: {
+    color: '#e5484d',
+    textAlign: 'center',
+  },
+  retryButton: {
+    alignItems: 'center',
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
   },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
-  },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
+  emptyText: {
+    textAlign: 'center',
+    paddingTop: Spacing.six,
   },
 });
