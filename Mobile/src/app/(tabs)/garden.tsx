@@ -9,6 +9,7 @@ import {
   TextInput,
   Keyboard,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 type Plant = {
@@ -88,16 +89,24 @@ type SectionBlockProps = {
   section: Section;
   onLayout: (y: number) => void;
   highlightedPlantId: string | null;
+  onPressTitle: () => void;
 };
 
 const SectionBlock = React.forwardRef<ScrollView, SectionBlockProps>(
-  ({ section, onLayout, highlightedPlantId }, ref) => {
+  ({ section, onLayout, highlightedPlantId, onPressTitle }, ref) => {
     return (
       <View
         style={cardStyles.section}
         onLayout={(e) => onLayout(e.nativeEvent.layout.y)}
       >
-        <Text style={cardStyles.sectionTitle}>{section.title}</Text>
+        <TouchableOpacity
+          style={cardStyles.sectionHeaderRow}
+          onPress={onPressTitle}
+          activeOpacity={0.7}
+        >
+          <Text style={cardStyles.sectionTitle}>{section.title}</Text>
+          <Ionicons name="chevron-forward" size={20} color="#1B391C" />
+        </TouchableOpacity>
         <ScrollView
           ref={ref}
           horizontal
@@ -119,6 +128,7 @@ const SectionBlock = React.forwardRef<ScrollView, SectionBlockProps>(
 );
 
 export default function Garden() {
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlightedPlantId, setHighlightedPlantId] = useState<string | null>(
@@ -173,7 +183,7 @@ export default function Garden() {
         keyboardShouldPersistTaps="handled"
       >
         <ImageBackground
-          source={require('@/assets/images/YourGardenBG.png')} 
+          source={require('@/assets/images/YourGardenBG.png')}
           resizeMode="cover"
           style={styles.background}
         >
@@ -221,6 +231,12 @@ export default function Garden() {
                 key={section.key}
                 section={section}
                 highlightedPlantId={highlightedPlantId}
+                onPressTitle={() =>
+                  router.push({
+                    pathname: '/collection/[type]',
+                    params: { type: section.key },
+                  })
+                }
                 ref={(el) => {
                   sectionScrollRefs.current[section.key] = el;
                 }}
@@ -293,11 +309,16 @@ const cardStyles = StyleSheet.create({
     marginTop: 20,
     padding: 16,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
   sectionTitle: {
     fontFamily: 'PlayfairDisplay_600SemiBold',
     fontSize: 22,
     color: '#1B391C',
-    marginBottom: 12,
   },
   row: { gap: 12 },
   card: { width: 96, alignItems: 'flex-start' },
