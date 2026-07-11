@@ -10,7 +10,7 @@ export default function Index() {
 
   const [fontsLoaded] = useFonts({
     Mootjungle: require('@/assets/fonts/Mootjungle.ttf'),
-    'Author-Bold': require('@/assets/fonts/Author-Bold.ttf'),
+    'Author-Variable': require('@/assets/fonts/Author-Variable.ttf'),
   });
 
   const [screen, setScreen] = useState<'landing' | 'auth'>('landing');
@@ -211,15 +211,17 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   choiceLabel: {
-    fontFamily: 'Author-Bold',
+    fontFamily: 'Author-Variable',
+    fontWeight: '700',
     fontSize: 15,
     color: '#2F4F3E',
     marginTop: 10,
     textAlign: 'center',
   },
   orText: {
-    fontFamily: 'Author-Bold',
+    fontFamily: 'Author-Variable',
     fontSize: 24,
+    fontWeight: '700',
     color: '#2F4F3E',
     marginHorizontal: 8,
   },
