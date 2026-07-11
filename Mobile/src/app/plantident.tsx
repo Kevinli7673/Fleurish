@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,9 @@ import {
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
 
 // --- Mock match data. Swap for the real identification API response. ---
 const PLANT = {
@@ -36,9 +37,32 @@ const PLANT = {
   ],
 };
 
+function getFamilyFromScientificName(scientificName?: string): string {
+  if (!scientificName) return 'Botanical Species';
+  const genus = scientificName.split(' ')[0].trim();
+  const map: Record<string, string> = {
+    Dahlia: 'Asteraceae',
+    Monstera: 'Araceae',
+    Lavandula: 'Lamiaceae',
+    Jasminum: 'Oleaceae',
+    Rosa: 'Rosaceae',
+    Ficus: 'Moraceae',
+    Spathiphyllum: 'Araceae',
+    Panaeolus: 'Bolbitiaceae',
+    Salvia: 'Lamiaceae',
+    Acer: 'Sapindaceae',
+    Chrysanthemum: 'Asteraceae',
+    Helianthus: 'Asteraceae',
+    Orchidaceae: 'Orchidaceae',
+    Phalaenopsis: 'Orchidaceae',
+  };
+  return map[genus] || `${genus} Family`;
+}
+
 export default function PlantResult() {
   const router = useRouter();
   const params = useLocalSearchParams<{ photoUri?: string; result?: string }>();
+  const [spotters, setSpotters] = useState<any[]>([]);
 
   // Parse dynamic result from identify-plant Edge Function
   let apiPlant = null;
@@ -57,19 +81,50 @@ export default function PlantResult() {
     altName: apiPlant?.scientific_name ?? PLANT.altName,
     match: apiPlant ? `${Math.round(apiPlant.confidence * 100)}% MATCH` : PLANT.match,
     tags: apiPlant ? [
-      { label: 'AI Identified', color: '#DDEFD3' },
       { label: 'Species Match', color: '#E8637A' },
-    ] : PLANT.tags,
+    ] : PLANT.tags.filter(t => t.label !== 'AI Identified'),
     care: apiPlant ? [
       { icon: 'water-outline', label: apiPlant.water_requirement || 'Regular', color: '#CFE3F0' },
       { icon: 'white-balance-sunny', label: apiPlant.light_requirement || 'Indirect', color: '#F0DFB8' },
       { icon: 'weather-windy', label: 'Humid', color: '#C8D8C2' },
     ] : PLANT.care,
     description: apiPlant?.care_tips ?? PLANT.description,
-    family: apiPlant ? 'Botanical Species' : PLANT.family,
-    spottedBy: PLANT.spottedBy,
+    family: apiPlant ? getFamilyFromScientificName(apiPlant.scientific_name) : PLANT.family,
     plantId: apiPlant?.plant_id ?? null,
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      async function loadSpotters() {
+        if (!plantData.plantId) return;
+        try {
+          const { data, error } = await supabase
+            .from('finds')
+            .select('id, user_id, profiles!finds_user_id_fkey(username, avatar_url)')
+            .eq('plant_id', plantData.plantId)
+            .limit(5);
+          if (error) throw error;
+          
+          if (active && data) {
+            const mapped = data.map((d: any) => ({
+              name: d.profiles?.username || 'Sprout Finder',
+              avatar: d.profiles?.avatar_url ? { uri: d.profiles.avatar_url } : require('@/assets/images/calathea.jpg'),
+            }));
+            setSpotters(mapped);
+          }
+        } catch (e) {
+          console.error('Failed to load spotters:', e);
+        }
+      }
+      loadSpotters();
+      return () => {
+        active = false;
+      };
+    }, [plantData.plantId])
+  );
+
+  const displayedSpotters = spotters;
 
   const photoSource = params.photoUri
     ? { uri: params.photoUri }
@@ -114,8 +169,8 @@ export default function PlantResult() {
               </View>
             ))}
           </View>
-          <Text style={styles.photoTitle}>{plantData.commonName}</Text>
-          <Text style={styles.photoSubtitle}>{plantData.scientificName}</Text>
+          <Text style={styles.photoTitle}>{plantData.scientificName}</Text>
+          <Text style={styles.photoSubtitle}>{plantData.commonName}</Text>
         </View>
       </View>
 
@@ -132,8 +187,8 @@ export default function PlantResult() {
           {/* Match card */}
           <View style={styles.matchCard}>
             <Text style={styles.matchLabel}>{plantData.match}</Text>
-            <Text style={styles.matchTitle}>{plantData.commonName}</Text>
-            <Text style={styles.matchSubtitle}>{plantData.altName}</Text>
+            <Text style={styles.matchTitle}>{plantData.scientificName}</Text>
+            <Text style={styles.matchSubtitle}>{plantData.commonName}</Text>
 
             <View style={styles.careRow}>
               {plantData.care.map((item) => (
@@ -179,15 +234,21 @@ export default function PlantResult() {
             <Text style={styles.aboutFamily}>Family: {plantData.family}</Text>
           </View>
 
-          {/* Spotted by friends */}
-          <Text style={styles.spottedHeader}>SPOTTED BY FRIENDS</Text>
+          {/* Spotted by other users */}
+          <Text style={styles.spottedHeader}>SPOTTED BY OTHER USERS</Text>
           <View style={styles.spottedRow}>
-            {plantData.spottedBy.map((friend) => (
-              <View key={friend.name} style={styles.spottedItem}>
-                <Image source={friend.avatar} style={styles.spottedAvatar} />
-                <Text style={styles.spottedName}>{friend.name}</Text>
-              </View>
-            ))}
+            {displayedSpotters.length > 0 ? (
+              displayedSpotters.map((spotter, idx) => (
+                <View key={spotter.name + '-' + idx} style={styles.spottedItem}>
+                  <Image source={spotter.avatar} style={styles.spottedAvatar} />
+                  <Text style={styles.spottedName}>{spotter.name}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={[styles.spottedName, { fontStyle: 'italic', opacity: 0.7, paddingLeft: 10, color: '#4B6355' }]}>
+                Be the first to log this plant species!
+              </Text>
+            )}
           </View>
 
           <View style={{ height: 40 }} />
