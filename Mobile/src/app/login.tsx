@@ -16,12 +16,32 @@ import {
   PlayfairDisplay_700Bold,
 } from '@expo-google-fonts/playfair-display';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 export default function Login() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin() {
+    setError(null);
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+
+    if (!error) return; // layout session provider handles navigation automatically
+
+    if (error.message.toLowerCase().includes('email not confirmed')) {
+      await supabase.auth.resend({ type: 'signup', email });
+      router.push({ pathname: '/verify', params: { email } });
+      return;
+    }
+    setError(error.message);
+  }
 
   const [fontsLoaded] = useFonts({
     PlayfairDisplay_700Bold,
@@ -102,11 +122,20 @@ export default function Login() {
 >           <Text style={styles.forgotText}>Forgot Password?</Text>
           </Pressable>
 
+          {error && (
+            <Text style={styles.errorText}>{error}</Text>
+          )}
+
           <Pressable
             style={styles.primaryButton}
-            onPress={() => router.replace('/(tabs)')}
+            onPress={handleLogin}
+            disabled={loading}
           >
-            <Text style={styles.primaryButtonText}>Let's go!</Text>
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Let's go!</Text>
+            )}
           </Pressable>
 
           <View style={styles.dividerRow}>
@@ -257,6 +286,12 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     textDecorationLine: 'underline',
+    fontFamily: 'Author-Variable',
+  },
+  errorText: {
+    color: '#e5484d',
+    marginVertical: 8,
+    textAlign: 'center',
     fontFamily: 'Author-Variable',
   },
 });

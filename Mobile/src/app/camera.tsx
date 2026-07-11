@@ -5,17 +5,21 @@ import {
   StyleSheet,
   Pressable,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
 
 export default function Camera() {
   const router = useRouter();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
+  const [loading, setLoading] = useState(false);
 
   if (!permission) {
     // Permissions are still loading
@@ -39,12 +43,56 @@ export default function Camera() {
     );
   }
 
+  const processImage = async (uri: string) => {
+    setLoading(true);
+    try {
+      console.log('Resizing image...');
+      const manipulated = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+
+      if (!manipulated.base64) {
+        throw new Error('Failed to encode image to base64');
+      }
+
+      const base64DataUrl = `data:image/jpeg;base64,${manipulated.base64}`;
+
+      console.log('Calling identify-plant edge function...');
+      const { data, error: functionError } = await supabase.functions.invoke(
+        'identify-plant',
+        {
+          body: { image: base64DataUrl },
+        }
+      );
+
+      if (functionError) {
+        throw new Error(functionError.message || 'Failed to identify plant');
+      }
+
+      console.log('Identification successful! Navigating...');
+      router.push({
+        pathname: '/plantident',
+        params: {
+          photoUri: uri,
+          result: JSON.stringify(data),
+        },
+      });
+    } catch (err: any) {
+      Alert.alert('Identification failed', err.message || 'Could not scan this plant. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCapture = async () => {
     if (!cameraRef.current) return;
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.85 });
-      // Hand off photo.uri to whatever identification/upload flow you build next
-      console.log('Captured photo:', photo?.uri);
+      if (photo?.uri) {
+        await processImage(photo.uri);
+      }
     } catch (err) {
       Alert.alert('Something went wrong', 'Could not capture the photo. Try again.');
     }
@@ -66,14 +114,24 @@ export default function Camera() {
     });
 
     if (!result.canceled && result.assets?.length) {
-      // Hand off result.assets[0].uri to the same identification flow
-      console.log('Picked from gallery:', result.assets[0].uri);
+      await processImage(result.assets[0].uri);
     }
   };
 
   const toggleFacing = () => {
     setFacing((prev) => (prev === 'back' ? 'front' : 'back'));
   };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F1E6' }]}>
+        <ActivityIndicator size="large" color="#2F4F3E" />
+        <Text style={{ marginTop: 16, fontSize: 16, fontWeight: '600', color: '#2F4F3E', fontFamily: 'Author-Variable' }}>
+          Scanning plant details...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

@@ -38,7 +38,38 @@ const PLANT = {
 
 export default function PlantResult() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ photoUri?: string }>();
+  const params = useLocalSearchParams<{ photoUri?: string; result?: string }>();
+
+  // Parse dynamic result from identify-plant Edge Function
+  let apiPlant = null;
+  if (params.result) {
+    try {
+      apiPlant = JSON.parse(params.result);
+    } catch (e) {
+      console.error('Failed to parse plant result:', e);
+    }
+  }
+
+  // Fallback to mock data if no api result (e.g. previewing)
+  const plantData = {
+    commonName: apiPlant?.common_name ?? PLANT.commonName,
+    scientificName: apiPlant?.scientific_name ?? PLANT.scientificName,
+    altName: apiPlant?.scientific_name ?? PLANT.altName,
+    match: apiPlant ? `${Math.round(apiPlant.confidence * 100)}% MATCH` : PLANT.match,
+    tags: apiPlant ? [
+      { label: 'AI Identified', color: '#DDEFD3' },
+      { label: 'Species Match', color: '#E8637A' },
+    ] : PLANT.tags,
+    care: apiPlant ? [
+      { icon: 'water-outline', label: apiPlant.water_requirement || 'Regular', color: '#CFE3F0' },
+      { icon: 'white-balance-sunny', label: apiPlant.light_requirement || 'Indirect', color: '#F0DFB8' },
+      { icon: 'weather-windy', label: 'Humid', color: '#C8D8C2' },
+    ] : PLANT.care,
+    description: apiPlant?.care_tips ?? PLANT.description,
+    family: apiPlant ? 'Botanical Species' : PLANT.family,
+    spottedBy: PLANT.spottedBy,
+    plantId: apiPlant?.plant_id ?? null,
+  };
 
   const photoSource = params.photoUri
     ? { uri: params.photoUri }
@@ -70,12 +101,12 @@ export default function PlantResult() {
 
         <View style={styles.photoBottom}>
           <View style={styles.tagRow}>
-            {PLANT.tags.map((tag) => (
+            {plantData.tags.map((tag) => (
               <View key={tag.label} style={[styles.tag, { backgroundColor: tag.color }]}>
                 <Text
                   style={[
                     styles.tagText,
-                    { color: tag.label === 'Indoor' ? '#FFFFFF' : '#2F4F3E' },
+                    { color: (tag.label === 'Indoor' || tag.label === 'Species Match') ? '#FFFFFF' : '#2F4F3E' },
                   ]}
                 >
                   {tag.label}
@@ -83,8 +114,8 @@ export default function PlantResult() {
               </View>
             ))}
           </View>
-          <Text style={styles.photoTitle}>{PLANT.commonName}</Text>
-          <Text style={styles.photoSubtitle}>{PLANT.scientificName}</Text>
+          <Text style={styles.photoTitle}>{plantData.commonName}</Text>
+          <Text style={styles.photoSubtitle}>{plantData.scientificName}</Text>
         </View>
       </View>
 
@@ -100,12 +131,12 @@ export default function PlantResult() {
         >
           {/* Match card */}
           <View style={styles.matchCard}>
-            <Text style={styles.matchLabel}>{PLANT.match}</Text>
-            <Text style={styles.matchTitle}>{PLANT.commonName}</Text>
-            <Text style={styles.matchSubtitle}>{PLANT.altName}</Text>
+            <Text style={styles.matchLabel}>{plantData.match}</Text>
+            <Text style={styles.matchTitle}>{plantData.commonName}</Text>
+            <Text style={styles.matchSubtitle}>{plantData.altName}</Text>
 
             <View style={styles.careRow}>
-              {PLANT.care.map((item) => (
+              {plantData.care.map((item) => (
                 <View
                   key={item.label}
                   style={[styles.carePill, { backgroundColor: item.color }]}
@@ -120,7 +151,19 @@ export default function PlantResult() {
               ))}
             </View>
 
-            <Pressable style={styles.logButton}>
+            <Pressable
+              style={styles.logButton}
+              onPress={() =>
+                router.push({
+                  pathname: '/plantlog',
+                  params: {
+                    photoUri: params.photoUri,
+                    plantName: plantData.commonName,
+                    plantId: plantData.plantId,
+                  },
+                })
+              }
+            >
               <Text style={styles.logButtonText}>Log Plant</Text>
               <MaterialCommunityIcons name="arrow-right" size={18} color="#FFFFFF" />
             </Pressable>
@@ -132,14 +175,14 @@ export default function PlantResult() {
               <MaterialCommunityIcons name="leaf" size={16} color="#4B6355" />
               <Text style={styles.aboutHeader}>About this plant</Text>
             </View>
-            <Text style={styles.aboutText}>{PLANT.description}</Text>
-            <Text style={styles.aboutFamily}>Family: {PLANT.family}</Text>
+            <Text style={styles.aboutText}>{plantData.description}</Text>
+            <Text style={styles.aboutFamily}>Family: {plantData.family}</Text>
           </View>
 
           {/* Spotted by friends */}
           <Text style={styles.spottedHeader}>SPOTTED BY FRIENDS</Text>
           <View style={styles.spottedRow}>
-            {PLANT.spottedBy.map((friend) => (
+            {plantData.spottedBy.map((friend) => (
               <View key={friend.name} style={styles.spottedItem}>
                 <Image source={friend.avatar} style={styles.spottedAvatar} />
                 <Text style={styles.spottedName}>{friend.name}</Text>

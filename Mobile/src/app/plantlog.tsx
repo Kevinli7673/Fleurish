@@ -11,7 +11,11 @@ import {
   Switch,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
+import { supabase } from '@/lib/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
@@ -20,7 +24,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function LogPlant() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ photoUri?: string; plantName?: string }>();
+  const params = useLocalSearchParams<{ photoUri?: string; plantName?: string; plantId?: string }>();
 
   const plantName = params.plantName ?? 'Monstera deliciosa';
   const photoSource = params.photoUri
@@ -33,6 +37,8 @@ export default function LogPlant() {
   const [locating, setLocating] = useState(false);
   const [note, setNote] = useState('');
   const [notifyFriends, setNotifyFriends] = useState(false);
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const handleDateChange = (_event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios'); // iOS keeps the picker inline; Android dismisses on select
@@ -50,6 +56,11 @@ export default function LogPlant() {
 
       const position = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
+      });
+
+      setCoords({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
       });
 
       const [place] = await Location.reverseGeocodeAsync({
@@ -70,12 +81,96 @@ export default function LogPlant() {
     }
   };
 
-  const handleAddToGarden = () => {
-    // Wire this up to your actual save call once the backend exists.
-    // If notifyFriends is true, that's also where you'd trigger a push
-    // notification (e.g. via expo-notifications + your backend's friend list).
-    router.back();
+  const handleAddToGarden = async () => {
+    if (!params.photoUri) {
+      Alert.alert('Missing photo', 'Please take a picture of the plant first.');
+      return;
+    }
+    setSaving(true);
+    try {
+      let lat = coords?.latitude ?? 0;
+      let lng = coords?.longitude ?? 0;
+
+      // If they haven't explicitly detected location, try fetching it quickly
+      if (!coords) {
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const loc = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            lat = loc.coords.latitude;
+            lng = loc.coords.longitude;
+          }
+        } catch (locationErr) {
+          console.warn("Could not retrieve GPS coordinates:", locationErr);
+        }
+      }
+
+      const sessionRes = await supabase.auth.getSession();
+      const userId = sessionRes.data.session?.user?.id;
+      if (!userId) {
+        throw new Error('No active user session found');
+      }
+
+      const fileName = `${userId}/${Date.now()}.jpg`;
+      const base64 = await FileSystem.readAsStringAsync(params.photoUri, {
+        encoding: 'base64',
+      });
+
+      console.log('Uploading photo to Supabase Storage...');
+      const { error: uploadErr } = await supabase.storage
+        .from('plant-photos')
+        .upload(fileName, decode(base64), {
+          contentType: 'image/jpeg',
+        });
+
+      if (uploadErr) {
+        throw new Error(`Storage upload failed: ${uploadErr.message}`);
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('plant-photos')
+        .getPublicUrl(fileName);
+
+      console.log('Creating database find record...');
+      const { error: createError } = await supabase.functions.invoke(
+        'create-find',
+        {
+          body: {
+            photo_url: publicUrl,
+            lat,
+            lng,
+            plant_id: params.plantId || null,
+            caption: note,
+            is_public: true,
+          },
+        }
+      );
+
+      if (createError) {
+        throw new Error(createError.message || 'Failed to create plant find record');
+      }
+
+      console.log('Sighting successfully saved!');
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      Alert.alert('Save failed', err.message || 'An error occurred while saving.');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (saving) {
+    return (
+      <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F1E6' }]}>
+        <ActivityIndicator size="large" color="#2F4F3E" />
+        <Text style={{ marginTop: 16, fontSize: 16, fontWeight: '600', color: '#2F4F3E', fontFamily: 'Author-Variable' }}>
+          Adding to your collection...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>

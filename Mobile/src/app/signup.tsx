@@ -16,6 +16,8 @@ import {
   PlayfairDisplay_700Bold,
 } from '@expo-google-fonts/playfair-display';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator } from 'react-native';
+import { supabase } from '@/lib/supabase';
 
 export default function Signup() {
   const router = useRouter();
@@ -23,6 +25,32 @@ export default function Signup() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSignUp() {
+    setError(null);
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
+    });
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    if (data.user) {
+      router.push({ pathname: '/verify', params: { email } });
+    }
+  }
 
   const [fontsLoaded] = useFonts({
     PlayfairDisplay_700Bold,
@@ -115,8 +143,20 @@ export default function Signup() {
             </Pressable>
           </View>
 
-          <Pressable style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Let's begin!</Text>
+          {error && (
+            <Text style={styles.errorText}>{error}</Text>
+          )}
+
+          <Pressable
+            style={styles.primaryButton}
+            onPress={handleSignUp}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Let's begin!</Text>
+            )}
           </Pressable>
 
           <View style={styles.dividerRow}>
@@ -256,6 +296,12 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     textDecorationLine: 'underline',
+    fontFamily: 'Author-Variable',
+  },
+  errorText: {
+    color: '#e5484d',
+    marginVertical: 8,
+    textAlign: 'center',
     fontFamily: 'Author-Variable',
   },
 });
