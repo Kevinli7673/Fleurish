@@ -296,6 +296,7 @@ const styles = StyleSheet.create({
   },
   profileBanner: {
     width: '100%',
+    alignSelf: 'stretch',
     height: 340,
     overflow: 'hidden',
     alignItems: 'center',
@@ -304,7 +305,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   profileBannerImage: {
-    // no rounding — full-bleed edge-to-edge like the mockup
+    width: '100%',
+    height: '100%',
   },
   avatar: {
     width: 100,
