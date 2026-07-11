@@ -56,7 +56,10 @@ export default function Profile() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.wordmark}>Fleurish.</Text>
-          <Pressable style={styles.bellButton}>
+          <Pressable
+            style={styles.bellButton}
+            onPress={() => router.push('/notifications')}
+          >
             <Ionicons name="notifications-outline" size={20} color="#2F4F3E" />
           </Pressable>
         </View>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   FlatList,
   ImageBackground,
   TouchableOpacity,
+  ViewToken,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,9 +24,24 @@ const BADGE_TYPES = [
   { label: 'Shade Lover', color: '#BFDCEB' },
   { label: 'Spring Bloomer', color: '#C7E3B0' },
   { label: 'Top Tenderer', color: '#D6C6EA' },
+  { label: 'Pollinator Pro', color: '#F5D68A' },
 ];
 
-const AVATAR_COLORS = ['#8FBEDB', '#B7C9A3', '#D9C88A', '#C99B7A', '#E0A9B0'];
+const FIRST_NAMES = [
+  'Chrissy', 'Liam', 'Emma', 'Noah', 'Ava', 'Ethan', 'Sophia', 'Mason',
+  'Isabella', 'Lucas', 'Mia', 'Elijah', 'Amelia', 'James', 'Harper',
+  'Benjamin', 'Evelyn', 'Henry', 'Luna', 'Alexander', 'Ella', 'Sebastian',
+  'Grace', 'Jack', 'Chloe', 'Owen', 'Aria', 'Daniel', 'Scarlett', 'Matthew',
+];
+
+function getRandomName(i: number) {
+  const first = FIRST_NAMES[i % FIRST_NAMES.length];
+  const initialCode = 65 + ((i * 7) % 26); // spreads initials out, deterministic
+  const initial = String.fromCharCode(initialCode);
+  return `${first} ${initial}.`;
+}
+
+const HEADER_HEIGHT = 260;
 
 // Placeholder data — swap with real friend rankings once available
 function generateLeaderboard(): LeaderboardEntry[] {
@@ -39,7 +55,7 @@ function generateLeaderboard(): LeaderboardEntry[] {
         : Math.max(50, 1400 - (i - 5) * 13);
     entries.push({
       rank: i,
-      name: `Name ${i}`,
+      name: getRandomName(i),
       blooms,
       badge: BADGE_TYPES[i % BADGE_TYPES.length].label,
     });
@@ -58,11 +74,26 @@ const currentUser: LeaderboardEntry = {
   isCurrentUser: true,
 };
 
-function getRankColor(rank: number) {
-  if (rank === 1) return '#F0A93A';
-  if (rank === 2) return '#B9B9B9';
-  if (rank === 3) return '#D98A2B';
-  return '#E893A4';
+function getRankTier(rank: number): 'gold' | 'silver' | 'bronze' | 'pink' {
+  if (rank === 1) return 'gold';
+  if (rank === 2) return 'silver';
+  if (rank === 3) return 'bronze';
+  return 'pink';
+}
+
+// Swap these for your actual exported shape/pfp asset filenames
+function getRankShapeSource(rank: number) {
+  const tier = getRankTier(rank);
+  switch (tier) {
+    case 'gold':
+      return require('@/assets/images/gold.png');
+    case 'silver':
+      return require('@/assets/images/silver.png');
+    case 'bronze':
+      return require('@/assets/images/bronze.png');
+    default:
+      return require('@/assets/images/pink.png');
+  }
 }
 
 function getBadgeColor(label: string) {
@@ -70,18 +101,20 @@ function getBadgeColor(label: string) {
 }
 
 function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
-  const rankColor = getRankColor(entry.rank);
-  const avatarColor = AVATAR_COLORS[entry.rank % AVATAR_COLORS.length];
-
   return (
     <View style={styles.row}>
-      <View style={[styles.rankBlock, { backgroundColor: rankColor }]}>
+      <ImageBackground
+        source={getRankShapeSource(entry.rank)}
+        style={styles.rankBlock}
+        resizeMode="stretch"
+      >
         <Text style={styles.rankNumber}>{entry.rank}</Text>
-        <View style={[styles.avatar, { backgroundColor: avatarColor }]} />
-      </View>
+      </ImageBackground>
 
       <View style={styles.rowInfo}>
-        <Text style={styles.rowName}>{entry.name}</Text>
+        <Text style={styles.rowName} numberOfLines={2}>
+          {entry.name}
+        </Text>
         <Text style={styles.rowBlooms}>
           {entry.blooms.toLocaleString()}
           {'\n'}Blooms
@@ -101,16 +134,39 @@ function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
 
 export default function Friends() {
   const router = useRouter();
+  const [expanded, setExpanded] = useState(false);
+  const [userRankVisible, setUserRankVisible] = useState(false);
+
+  const displayedData = expanded
+    ? leaderboardData
+    : leaderboardData.slice(0, 5);
+
+  // Tracks whether the user's actual rank row is currently on screen —
+  // the pinned indicator only hides while that row is visible.
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      const isVisible = viewableItems.some(
+        (v) => (v.item as LeaderboardEntry)?.rank === currentUser.rank
+      );
+      setUserRankVisible(isVisible);
+    }
+  ).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
 
   return (
     <View style={styles.screen}>
       <FlatList
         style={{ flex: 1 }}
-        data={leaderboardData}
+        data={displayedData}
         keyExtractor={(item) => String(item.rank)}
         renderItem={({ item }) => <LeaderboardRow entry={item} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         ListHeaderComponent={
           <ImageBackground
             source={require('@/assets/images/LeaderboardBG.png')}
@@ -133,11 +189,23 @@ export default function Friends() {
             </TouchableOpacity>
           </ImageBackground>
         }
+        ListFooterComponent={
+          !expanded ? (
+            <TouchableOpacity
+              style={styles.seeFullButton}
+              onPress={() => setExpanded(true)}
+            >
+              <Text style={styles.seeFullText}>See full leaderboard ↓</Text>
+            </TouchableOpacity>
+          ) : null
+        }
       />
 
-      <View style={styles.pinnedRow}>
-        <LeaderboardRow entry={currentUser} />
-      </View>
+      {!userRankVisible && (
+        <View style={styles.pinnedRow}>
+          <LeaderboardRow entry={currentUser} />
+        </View>
+      )}
     </View>
   );
 }
@@ -147,7 +215,7 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 100 },
   header: {
     width: '100%',
-    height: 420,
+    height: HEADER_HEIGHT,
     paddingHorizontal: 20,
     paddingTop: 50,
   },
@@ -165,7 +233,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 24,
     paddingVertical: 14,
-    marginTop: 90,
+    marginTop: 24,
   },
   titleText: {
     fontFamily: 'PlayfairDisplay_700Bold',
@@ -195,31 +263,24 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   rankBlock: {
-    width: 90,
+    width: 70,
     height: 90,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-    paddingLeft: 12,
   },
   rankNumber: {
     fontFamily: 'PlayfairDisplay_700Bold',
     fontSize: 24,
     color: '#1B391C',
   },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
   rowInfo: {
     flex: 1,
     paddingLeft: 16,
+    paddingRight: 8,
   },
   rowName: {
     fontFamily: 'PlayfairDisplay_700Bold',
-    fontSize: 20,
+    fontSize: 18,
     color: '#1B391C',
   },
   rowBlooms: {
@@ -229,18 +290,38 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   badge: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginRight: 16,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 14,
+    maxWidth: 90,
   },
   badgeText: {
     fontFamily: 'Author-Bold',
-    fontSize: 13,
+    fontSize: 10,
     color: '#1B391C',
   },
+  seeFullButton: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  seeFullText: {
+    fontFamily: 'Author-Bold',
+    fontSize: 15,
+    color: '#D9637A',
+  },
   pinnedRow: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: '#FFFFFF',
     paddingBottom: 8,
+    paddingTop: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 8,
   },
 });
