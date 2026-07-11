@@ -1,0 +1,282 @@
+[
+  {
+    "common_name": "Monstera Deliciosa",
+    "scientific_name": "Monstera deliciosa",
+    "light_requirement": "Bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Water when the top 2-3 inches of soil are dry. Wipe leaves with a damp cloth to remove dust and help photosynthesis."
+  },
+  {
+    "common_name": "Snake Plant",
+    "scientific_name": "Sansevieria trifasciata",
+    "light_requirement": "Low to bright light",
+    "water_requirement": "Low water",
+    "care_tips": "Extremely drought-tolerant. Allow soil to dry out completely between waterings. Avoid overwatering to prevent root rot."
+  },
+  {
+    "common_name": "Fiddle Leaf Fig",
+    "scientific_name": "Ficus lyrata",
+    "light_requirement": "Bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Requires consistent light. Rotate the plant 90 degrees every month. Water thoroughly when the top inch of soil feels dry."
+  },
+  {
+    "common_name": "Golden Pothos",
+    "scientific_name": "Epipremnum aureum",
+    "light_requirement": "Low to bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Very hardy trailing plant. Water when leaves start to droop slightly. Trim vines regularly to encourage bushier growth."
+  },
+  {
+    "common_name": "Spider Plant",
+    "scientific_name": "Chlorophytum comosum",
+    "light_requirement": "Bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers well-draining soil. Susceptible to fluoride in tap water; use distilled or rainwater if leaf tips turn brown."
+  },
+  {
+    "common_name": "Aloe Vera",
+    "scientific_name": "Aloe vera",
+    "light_requirement": "Bright direct light",
+    "water_requirement": "Low water",
+    "care_tips": "Succulent that needs sandy, well-draining soil. Water deeply but infrequently, allowing the soil to dry out completely."
+  },
+  {
+    "common_name": "Peace Lily",
+    "scientific_name": "Spathiphyllum wallisii",
+    "light_requirement": "Low to moderate indirect light",
+    "water_requirement": "High water",
+    "care_tips": "Keep soil consistently moist but not soggy. Will tell you when it needs water by drooping its leaves. Mist regularly."
+  },
+  {
+    "common_name": "ZZ Plant",
+    "scientific_name": "Zamioculcas zamiifolia",
+    "light_requirement": "Low to bright indirect light",
+    "water_requirement": "Low water",
+    "care_tips": "Thrives on neglect. Water only once a month or when soil is completely dry. Keep away from direct hot sunlight."
+  },
+  {
+    "common_name": "Boston Fern",
+    "scientific_name": "Nephrolepis exaltata",
+    "light_requirement": "Medium indirect light",
+    "water_requirement": "High water",
+    "care_tips": "Thrives in high humidity. Keep soil damp at all times and mist daily or place on a pebble tray with water."
+  },
+  {
+    "common_name": "Jade Plant",
+    "scientific_name": "Crassula ovata",
+    "light_requirement": "Bright direct light",
+    "water_requirement": "Low water",
+    "care_tips": "Classic succulent. Water only when the leaves feel slightly soft or puckered. Place in a south-facing window."
+  },
+  {
+    "common_name": "English Ivy",
+    "scientific_name": "Hedera helix",
+    "light_requirement": "Medium to bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers cooler temperatures. Water thoroughly and then let the top half of the soil dry out before watering again."
+  },
+  {
+    "common_name": "Calathea Orbifolia",
+    "scientific_name": "Calathea orbifolia",
+    "light_requirement": "Medium indirect light",
+    "water_requirement": "High water",
+    "care_tips": "Requires high humidity and purified water. Keep soil evenly moist. Sensitive to drafts and dramatic temperature changes."
+  },
+  {
+    "common_name": "Rubber Plant",
+    "scientific_name": "Ficus elastica",
+    "light_requirement": "Bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Water when the top 2 inches of soil are dry. Mist leaves in dry seasons. Avoid moving the plant to prevent leaf drop."
+  },
+  {
+    "common_name": "String of Pearls",
+    "scientific_name": "Senecio rowleyanus",
+    "light_requirement": "Bright indirect light",
+    "water_requirement": "Low water",
+    "care_tips": "Needs excellent drainage. Water sparingly and avoid getting water on the spherical leaves to prevent rot."
+  },
+  {
+    "common_name": "Swiss Cheese Plant",
+    "scientific_name": "Monstera adansonii",
+    "light_requirement": "Bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Trailing or climbing vine. Provide a moss pole for support. Keep soil moist but not wet."
+  },
+  {
+    "common_name": "Cast Iron Plant",
+    "scientific_name": "Aspidistra elatior",
+    "light_requirement": "Low indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Extremely tough. Tolerates low light, poor soil, and irregular watering. Wipe leaves occasionally to keep clean."
+  },
+  {
+    "common_name": "Chinese Evergreen",
+    "scientific_name": "Aglaonema commutatum",
+    "light_requirement": "Low to medium indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Easy to grow. Prefers warm temperatures and moderate humidity. Allow soil to dry out slightly between waterings."
+  },
+  {
+    "common_name": "Bird of Paradise",
+    "scientific_name": "Strelitzia reginae",
+    "light_requirement": "Bright direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Requires ample sunlight to bloom. Keep soil moist during spring and summer, and let it dry out more in winter."
+  },
+  {
+    "common_name": "Moth Orchid",
+    "scientific_name": "Phalaenopsis",
+    "light_requirement": "Medium indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Water once a week by soaking the bark mix and draining completely. Use orchid-specific fertilizer monthly."
+  },
+  {
+    "common_name": "Prayer Plant",
+    "scientific_name": "Maranta leucooneura",
+    "light_requirement": "Medium indirect light",
+    "water_requirement": "High water",
+    "care_tips": "Keep soil moist but not soggy. Leaves fold up at night, mimicking hands in prayer. Prefers warm, humid rooms."
+  },
+  {
+    "common_name": "Evergreen Oak",
+    "scientific_name": "Quercus rotundifolia",
+    "light_requirement": "Bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with bright indirect light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Common Nettle",
+    "scientific_name": "Urtica dioica",
+    "light_requirement": "Partial Shade / Bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with partial shade / bright indirect light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Barnyard Grass",
+    "scientific_name": "Dactylis glomerata",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Narrow-Leaf Plantain",
+    "scientific_name": "Plantago lanceolata",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Milfoil",
+    "scientific_name": "Achillea millefolium",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Dutch Clover",
+    "scientific_name": "Trifolium repens",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Yorkshire-Fog",
+    "scientific_name": "Holcus lanatus",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Creeping Buttercup",
+    "scientific_name": "Ranunculus repens",
+    "light_requirement": "Partial Shade / Bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with partial shade / bright indirect light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Pedunculate Oak",
+    "scientific_name": "Quercus robur",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Red Fescue",
+    "scientific_name": "Festuca rubra",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "European Ash",
+    "scientific_name": "Fraxinus excelsior",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "California Thistle",
+    "scientific_name": "Cirsium arvense",
+    "light_requirement": "Bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with bright indirect light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Cowgrass Clover",
+    "scientific_name": "Trifolium pratense",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Beech",
+    "scientific_name": "Fagus sylvatica",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Soft Rush",
+    "scientific_name": "Juncus effusus",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Meadow Buttercup",
+    "scientific_name": "Ranunculus acris",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Hawthorn",
+    "scientific_name": "Crataegus monogyna",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Garden Sorrel",
+    "scientific_name": "Rumex acetosa",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Heather",
+    "scientific_name": "Calluna vulgaris",
+    "light_requirement": "Bright indirect light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with bright indirect light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  },
+  {
+    "common_name": "Meadowsweet",
+    "scientific_name": "Filipendula ulmaria",
+    "light_requirement": "Full Sun / Direct light",
+    "water_requirement": "Moderate water",
+    "care_tips": "Prefers an environment with full sun / direct light and moderate water. Provide well-drained potting mix and feed with a balanced fertilizer during the active growing season."
+  }
+]
