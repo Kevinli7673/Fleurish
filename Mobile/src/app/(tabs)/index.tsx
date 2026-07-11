@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,9 @@ import {
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
 
 const COLORS = {
   text: '#1B391C',
@@ -58,6 +59,59 @@ const FRIEND_UPDATE = {
 
 export default function Feed() {
   const router = useRouter();
+  const [nearbyFinds, setNearbyFinds] = useState<any[]>([]);
+  const [friendUpdate, setFriendUpdate] = useState<any | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      async function loadFeed() {
+        try {
+          const { data, error } = await supabase
+            .from('finds')
+            .select('id, photo_url, caption, city, confidence, created_at, plants(common_name), profiles(username, avatar_url)')
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+          if (error) throw error;
+
+          if (active && data) {
+            const rawData = data as any[];
+            // Populate spotted nearby
+            const mappedNearby = rawData.slice(0, 4).map(f => ({
+              id: f.id,
+              name: f.plants?.common_name ?? 'Unknown Plant',
+              distance: f.city || 'Nearby',
+              image: f.photo_url ? { uri: f.photo_url } : require('@/assets/images/plants/monstera.jpg'),
+            }));
+            setNearbyFinds(mappedNearby);
+
+            // Populate the highlighted post
+            if (rawData.length > 0) {
+              const highlight = rawData[0];
+              setFriendUpdate({
+                name: highlight.plants?.common_name ?? 'Unknown Plant',
+                location: highlight.city || 'Nearby',
+                note: highlight.caption || 'Logged a new plant sighting!',
+                loggedBy: highlight.profiles?.username || 'Sprout Finder',
+                match: highlight.confidence ? `${Math.round(Number(highlight.confidence) * 100)}% match` : 'AI match',
+                image: highlight.photo_url ? { uri: highlight.photo_url } : require('@/assets/images/plants/monstera.jpg'),
+              });
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load feed:', e);
+        }
+      }
+      loadFeed();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
+  const displayedNearby = nearbyFinds.length > 0 ? nearbyFinds : NEARBY_BLOOMS;
+  const displayedFriendUpdate = friendUpdate || FRIEND_UPDATE;
 
   return (
     <ImageBackground
@@ -133,7 +187,7 @@ export default function Feed() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.nearbyRow}
         >
-          {NEARBY_BLOOMS.map((plant) => (
+          {displayedNearby.map((plant) => (
             <Pressable key={plant.id} style={styles.nearbyCard}>
               <View style={styles.nearbyImageWrap}>
                 <Image source={plant.image} style={styles.nearbyImage} resizeMode="cover" />
@@ -153,30 +207,29 @@ export default function Feed() {
         </ScrollView>
 
         {/* From your friends */}
-        {/* From your friends */}
-      <View style={[styles.sectionHeaderRow, { marginTop: 45 }]}>
-        <MaterialCommunityIcons name="account-group-outline" size={18} color={COLORS.text} />
-        <Text style={styles.sectionHeader}>From your friends</Text>
-      </View>
+        <View style={[styles.sectionHeaderRow, { marginTop: 45 }]}>
+          <MaterialCommunityIcons name="account-group-outline" size={18} color={COLORS.text} />
+          <Text style={styles.sectionHeader}>From your friends</Text>
+        </View>
 
         <View style={styles.friendCard}>
-          <Image source={FRIEND_UPDATE.image} style={styles.friendImage} resizeMode="cover" />
+          <Image source={displayedFriendUpdate.image} style={styles.friendImage} resizeMode="cover" />
           <View style={styles.friendInfo}>
-            <Text style={styles.friendPlantName}>{FRIEND_UPDATE.name}</Text>
+            <Text style={styles.friendPlantName}>{displayedFriendUpdate.name}</Text>
             <View style={styles.friendLocationRow}>
               <MaterialCommunityIcons
                 name="map-marker"
                 size={12}
                 color={COLORS.locationText}
               />
-              <Text style={styles.friendLocation}>{FRIEND_UPDATE.location}</Text>
+              <Text style={styles.friendLocation}>{displayedFriendUpdate.location}</Text>
             </View>
             <Text style={styles.friendNote}>
-              Logged by {FRIEND_UPDATE.loggedBy}. "{FRIEND_UPDATE.note}"
+              Logged by {displayedFriendUpdate.loggedBy}. "{displayedFriendUpdate.note}"
             </Text>
             <View style={styles.friendFooterRow}>
               <View style={styles.matchPill}>
-                <Text style={styles.matchPillText}>{FRIEND_UPDATE.match}</Text>
+                <Text style={styles.matchPillText}>{displayedFriendUpdate.match}</Text>
               </View>
               <Pressable hitSlop={8}>
                 <MaterialCommunityIcons

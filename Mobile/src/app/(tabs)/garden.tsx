@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,11 @@ import {
   TouchableOpacity,
   TextInput,
   Keyboard,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import { getMyFinds, MyFind } from '@/lib/finds';
 
 type Plant = {
   id: string;
@@ -21,37 +24,6 @@ type Section = {
   title: string;
   data: Plant[];
 };
-
-// Placeholder data — swap with real collection/favorites/wishlist data once available
-const sections: Section[] = [
-  {
-    key: 'myCollection',
-    title: 'My Collection',
-    data: [
-      { id: '1', name: 'Cherry Sage' },
-      { id: '2', name: 'Star Jasmine' },
-      { id: '3', name: 'Monstera' },
-    ],
-  },
-  {
-    key: 'favorites',
-    title: 'Favorites',
-    data: [
-      { id: '1', name: 'Cherry Sage' },
-      { id: '2', name: 'Star Jasmine' },
-      { id: '3', name: 'Monstera' },
-    ],
-  },
-  {
-    key: 'wantToFind',
-    title: 'Want to Find',
-    data: [
-      { id: '1', name: 'Cherry Sage' },
-      { id: '2', name: 'Star Jasmine' },
-      { id: '3', name: 'Monstera' },
-    ],
-  },
-];
 
 // Cycled placeholder colors for empty plant boxes
 const placeholderColors = ['#E7C9C4', '#B7B98C', '#E7C9C4', '#D8D3C4'];
@@ -124,6 +96,61 @@ export default function Garden() {
   const [highlightedPlantId, setHighlightedPlantId] = useState<string | null>(
     null
   );
+  const [myFinds, setMyFinds] = useState<MyFind[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      async function loadFinds() {
+        try {
+          const data = await getMyFinds();
+          if (active) {
+            setMyFinds(data);
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          if (active) setLoading(false);
+        }
+      }
+      loadFinds();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
+  const dynamicCollection = myFinds.map(find => ({
+    id: find.id,
+    name: find.plants?.common_name ?? find.caption ?? 'Unknown Plant',
+  }));
+
+  const sections: Section[] = [
+    {
+      key: 'myCollection',
+      title: 'My Collection',
+      data: dynamicCollection,
+    },
+    {
+      key: 'favorites',
+      title: 'Favorites',
+      data: [
+        { id: 'fav1', name: 'Cherry Sage' },
+        { id: 'fav2', name: 'Star Jasmine' },
+        { id: 'fav3', name: 'Monstera' },
+      ],
+    },
+    {
+      key: 'wantToFind',
+      title: 'Want to Find',
+      data: [
+        { id: 'wtf1', name: 'Cherry Sage' },
+        { id: 'wtf2', name: 'Star Jasmine' },
+        { id: 'wtf3', name: 'Monstera' },
+      ],
+    },
+  ];
 
   const mainScrollRef = useRef<ScrollView>(null);
   const sectionScrollRefs = useRef<Record<string, ScrollView | null>>({});

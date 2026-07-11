@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,11 @@ import {
   ImageBackground,
   TouchableOpacity,
   ViewToken,
+  ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
 
 type LeaderboardEntry = {
   rank: number;
@@ -136,17 +138,81 @@ export default function Friends() {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [userRankVisible, setUserRankVisible] = useState(false);
+  const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
+  const [currentUserRank, setCurrentUserRank] = useState<LeaderboardEntry | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      async function loadLeaderboard() {
+        try {
+          const sessionRes = await supabase.auth.getSession();
+          const userId = sessionRes.data.session?.user?.id;
+
+          const { data, error } = await supabase.functions.invoke('get-leaderboard', {
+            body: { scope: 'all_time', friend_group: null }
+          });
+
+          if (error) throw error;
+
+          if (active && data?.rankings) {
+            const mapped: LeaderboardEntry[] = data.rankings.map((r: any, idx: number) => ({
+              rank: idx + 1,
+              name: r.username || 'Sprout finder',
+              blooms: r.blooms || 0,
+              badge: BADGE_TYPES[idx % BADGE_TYPES.length].label,
+              isCurrentUser: r.user_id === userId,
+            }));
+            setRankings(mapped);
+
+            const userRank = mapped.find(r => r.isCurrentUser);
+            if (userRank) {
+              setCurrentUserRank(userRank);
+            } else if (userId) {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('username')
+                .eq('id', userId)
+                .maybeSingle();
+
+              const { data: bloomsRes } = await supabase
+                .from('streaks')
+                .select('longest_streak')
+                .eq('user_id', userId)
+                .maybeSingle();
+
+              setCurrentUserRank({
+                rank: mapped.length + 1,
+                name: profile?.username || 'You',
+                blooms: bloomsRes?.longest_streak || 0,
+                badge: 'Novice Sighting',
+                isCurrentUser: true,
+              });
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load leaderboard:', e);
+        } finally {
+          if (active) setLoading(false);
+        }
+      }
+      loadLeaderboard();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
 
   const displayedData = expanded
-    ? leaderboardData
-    : leaderboardData.slice(0, 5);
+    ? rankings
+    : rankings.slice(0, 5);
 
-  // Tracks whether the user's actual rank row is currently on screen —
-  // the pinned indicator only hides while that row is visible.
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      if (!currentUserRank) return;
       const isVisible = viewableItems.some(
-        (v) => (v.item as LeaderboardEntry)?.rank === currentUser.rank
+        (v) => (v.item as LeaderboardEntry)?.rank === currentUserRank.rank
       );
       setUserRankVisible(isVisible);
     }
@@ -156,12 +222,20 @@ export default function Friends() {
     itemVisiblePercentThreshold: 50,
   }).current;
 
+  if (loading && rankings.length === 0) {
+    return (
+      <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#1B391C" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.screen}>
       <FlatList
         style={{ flex: 1 }}
         data={displayedData}
-        keyExtractor={(item) => String(item.rank)}
+        keyExtractor={(item) => String(item.rank) + '-' + item.name}
         renderItem={({ item }) => <LeaderboardRow entry={item} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -185,12 +259,12 @@ export default function Friends() {
             </View>
 
             <TouchableOpacity style={styles.filterPill}>
-              <Text style={styles.filterText}>This Week</Text>
+              <Text style={styles.filterText}>All Time</Text>
             </TouchableOpacity>
           </ImageBackground>
         }
         ListFooterComponent={
-          !expanded ? (
+          !expanded && rankings.length > 5 ? (
             <TouchableOpacity
               style={styles.seeFullButton}
               onPress={() => setExpanded(true)}
@@ -201,9 +275,9 @@ export default function Friends() {
         }
       />
 
-      {!userRankVisible && (
+      {currentUserRank && !userRankVisible && (
         <View style={styles.pinnedRow}>
-          <LeaderboardRow entry={currentUser} />
+          <LeaderboardRow entry={currentUserRank} />
         </View>
       )}
     </View>

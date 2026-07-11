@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,22 +8,91 @@ import {
   Image,
   Pressable,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useFonts } from 'expo-font';
 import {
   PlayfairDisplay_700Bold,
 } from '@expo-google-fonts/playfair-display';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useProfile } from '@/context/profilecontext';
+import { supabase } from '@/lib/supabase';
+import { getProfile, type ProfileWithStats } from '@/lib/profile';
 
 export default function Profile() {
   const router = useRouter();
-  const { photoUri, location, bio } = useProfile();
+  const profileContext = useProfile();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [profileData, setProfileData] = useState<ProfileWithStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      async function loadProfileData() {
+        try {
+          const sessionRes = await supabase.auth.getSession();
+          const userId = sessionRes.data.session?.user?.id;
+          if (!userId) return;
+
+          const data = await getProfile(userId);
+          if (active) {
+            setProfileData(data);
+            profileContext.updateProfile({
+              photoUri: data.avatar_url,
+              bio: data.bio ?? '',
+            });
+          }
+        } catch (e) {
+          console.error('Failed to load profile:', e);
+        } finally {
+          if (active) setLoading(false);
+        }
+      }
+      loadProfileData();
+      return () => {
+        active = false;
+      };
+    }, [])
+  );
+
+  const handleUpdateEmail = async () => {
+    if (!email.trim()) return;
+    try {
+      const { error } = await supabase.auth.updateUser({ email });
+      if (error) throw error;
+      Alert.alert('Email Updated', 'A verification link has been sent to your new email.');
+      setEmail('');
+    } catch (e: any) {
+      Alert.alert('Failed to update email', e.message);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!password.trim()) return;
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      Alert.alert('Password Updated', 'Your password has been successfully updated.');
+      setPassword('');
+    } catch (e: any) {
+      Alert.alert('Failed to update password', e.message);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } catch (e: any) {
+      Alert.alert('Failed to sign out', e.message);
+    }
+  };
 
   const [fontsLoaded] = useFonts({
     Mootjungle: require('@/assets/fonts/Mootjungle.ttf'),
@@ -31,8 +100,12 @@ export default function Profile() {
     'Author-Variable': require('@/assets/fonts/Author-Variable.ttf'),
   });
 
-  if (!fontsLoaded) {
-    return <View style={styles.loadingContainer} />;
+  if (!fontsLoaded || loading) {
+    return (
+      <View style={[styles.loadingContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#2F4F3E" />
+      </View>
+    );
   }
 
   return (
@@ -71,14 +144,14 @@ export default function Profile() {
           imageStyle={[styles.profileBannerImage, { opacity: 0.4 }]}
           resizeMode="cover"
         >
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+          {profileContext.photoUri ? (
+            <Image source={{ uri: profileContext.photoUri }} style={styles.avatarImage} />
           ) : (
             <View style={styles.avatar} />
           )}
-          <Text style={styles.name}>Marmalade T.</Text>
-          <Text style={styles.location}>{location}</Text>
-          <Text style={styles.bio}>{bio}</Text>
+          <Text style={styles.name}>{profileData?.username ?? 'Anonymous'}</Text>
+          <Text style={styles.location}>{profileContext.location}</Text>
+          <Text style={styles.bio}>{profileContext.bio || 'No bio set.'}</Text>
           <Pressable
             style={styles.editProfileButton}
             onPress={() => router.push('/editprofile')}
@@ -94,9 +167,9 @@ export default function Profile() {
           end={{ x: 1, y: 0 }}
           style={styles.statsBanner}
         >
-          <Text style={styles.statsText}>128 Friends</Text>
+          <Text style={styles.statsText}>{profileData ? `${profileData.friendsCount} Friends` : '0 Friends'}</Text>
           <Text style={styles.statsDot}>•</Text>
-          <Text style={styles.statsText}>54 Plants logged</Text>
+          <Text style={styles.statsText}>{profileData ? `${profileData.findsCount} Plants logged` : '0 Plants logged'}</Text>
         </LinearGradient>
 
         {/* Settings */}
@@ -125,7 +198,7 @@ export default function Profile() {
                 keyboardType="email-address"
               />
             </View>
-            <Pressable style={styles.updateButton}>
+            <Pressable style={styles.updateButton} onPress={handleUpdateEmail}>
               <Text style={styles.updateButtonText}>Update</Text>
             </Pressable>
           </View>
@@ -155,7 +228,7 @@ export default function Profile() {
                 />
               </Pressable>
             </View>
-            <Pressable style={styles.updateButton}>
+            <Pressable style={styles.updateButton} onPress={handleUpdatePassword}>
               <Text style={styles.updateButtonText}>Update</Text>
             </Pressable>
           </View>
@@ -165,8 +238,12 @@ export default function Profile() {
             <Text style={styles.sectionHeaderText}>Big Bad Settings</Text>
           </View>
 
-          <Pressable style={styles.deleteButton}>
+          <Pressable style={styles.deleteButton} onPress={() => Alert.alert('Delete Account', 'Please contact support at team@fleurish.app to delete your account.')}>
             <Text style={styles.deleteButtonText}>Delete Account</Text>
+          </Pressable>
+
+          <Pressable style={[styles.deleteButton, { backgroundColor: '#4B6355', marginTop: 12 }]} onPress={handleSignOut}>
+            <Text style={styles.deleteButtonText}>Log Out</Text>
           </Pressable>
         </View>
 

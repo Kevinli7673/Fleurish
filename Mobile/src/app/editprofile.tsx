@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -19,6 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useProfile } from '@/context/profilecontext';
+import { updateProfile, uploadAvatar } from '@/lib/profile';
 
 export default function EditProfile() {
   const router = useRouter();
@@ -28,6 +30,7 @@ export default function EditProfile() {
   const [location, setLocation] = useState(profile.location);
   const [bio, setBio] = useState(profile.bio);
   const [locating, setLocating] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [fontsLoaded] = useFonts({
     Mootjungle: require('@/assets/fonts/Mootjungle.ttf'),
@@ -99,12 +102,39 @@ export default function EditProfile() {
     }
   };
 
-  const handleSave = () => {
-    // Swap this out for your real API call once you have a backend —
-    // updateProfile still keeps the UI in sync in the meantime.
-    profile.updateProfile({ photoUri, location, bio });
-    router.back();
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      let finalPhotoUrl = photoUri;
+
+      // If photoUri has changed and is a local file, upload it
+      if (photoUri && photoUri !== profile.photoUri && (photoUri.startsWith('file://') || photoUri.startsWith('ph://'))) {
+        console.log('Uploading new profile avatar image...');
+        finalPhotoUrl = await uploadAvatar(photoUri);
+      }
+
+      console.log('Updating database profile details...');
+      await updateProfile({ bio });
+
+      profile.updateProfile({ photoUri: finalPhotoUrl, location, bio });
+      router.back();
+    } catch (err: any) {
+      Alert.alert('Save failed', err.message || 'An error occurred while saving your profile.');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (saving) {
+    return (
+      <View style={[styles.loadingContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#2F4F3E" />
+        <Text style={{ marginTop: 16, fontSize: 16, fontWeight: '600', color: '#2F4F3E', fontFamily: 'Author-Variable' }}>
+          Saving your profile...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <ImageBackground
