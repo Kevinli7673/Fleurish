@@ -25,7 +25,7 @@ export default function LogPlant() {
   const plantName = params.plantName ?? 'Monstera deliciosa';
   const photoSource = params.photoUri
     ? { uri: params.photoUri }
-    : require('@/assets/images/plants/monstera.jpg');
+    : require('@/assets/images/monstera.jpg');
 
   const [date, setDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
