@@ -10,7 +10,7 @@ import {
 } from '@expo-google-fonts/playfair-display';
 
 const PINK = '#D9637A';
-const INACTIVE = '#9CA7A0';
+const INACTIVE = '#9CA7A0'; 
 const DARK_TEXT = '#1B391C';
 
 // FAB gradient — matches the web mockup's `linear-gradient(135deg,#E8778A,#D9637A)`.
