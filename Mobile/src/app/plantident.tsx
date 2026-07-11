@@ -31,8 +31,8 @@ const PLANT = {
     "Monstera deliciosa, the Swiss Cheese Plant, is a beloved tropical houseplant prized for its large, glossy, perforated leaves. Native to Central America, it thrives in humid environments with bright, indirect light.",
   family: 'Araceae',
   spottedBy: [
-    { name: 'hhh', avatar: require('@/assets/images/calathea.png') },
-    { name: 'Maya', avatar: require('@/assets/images/calathea.png') },
+    { name: 'hhh', avatar: require('@/assets/images/calathea.jpg') },
+    { name: 'Maya', avatar: require('@/assets/images/calathea.jpg') },
   ],
 };
 
