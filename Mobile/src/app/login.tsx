@@ -38,8 +38,8 @@ export default function Login() {
       style={styles.background}
       resizeMode="cover"
     >
-      <Pressable style={styles.backButton} onPress={() => router.back()}>
-        <Ionicons name="arrow-back" size={26} color="#2F4F3E" />
+      <Pressable style={styles.backButton} onPress={() => router.replace('/?screen=auth')}>
+            <Ionicons name="arrow-back" size={26} color="#2F4F3E" />
       </Pressable>
 
       <KeyboardAvoidingView
@@ -96,8 +96,9 @@ export default function Login() {
             </Pressable>
           </View>
 
-          <Pressable style={styles.forgotWrapper}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
+          <Pressable style={styles.forgotWrapper}
+            onPress={() => router.push('/forgpassword')}
+>           <Text style={styles.forgotText}>Forgot Password?</Text>
           </Pressable>
 
           <Pressable style={styles.primaryButton}>
