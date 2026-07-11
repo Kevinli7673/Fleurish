@@ -85,7 +85,7 @@ export default function Index() {
         />
       </Animated.View>
 
-      {/* Auth-choice background */}
+      {/* Choice background */}
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: authBgFade }]}>
         <ImageBackground
           source={require('@/assets/images/Choice.png')}
