@@ -3,10 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
   ImageBackground,
   TouchableOpacity,
-  ViewToken,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,7 +45,7 @@ function getRandomName(i: number) {
   return `${first} ${initial}.`;
 }
 
-const HEADER_HEIGHT = 260;
+const ROW_HEIGHT = 104; // row height (90) + marginTop (14)
 
 // Placeholder data — swap with real friend rankings once available
 function generateLeaderboard(): LeaderboardEntry[] {
@@ -102,9 +104,20 @@ function getBadgeColor(label: string) {
   return BADGE_TYPES.find((b) => b.label === label)?.color ?? '#E893A4';
 }
 
-function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
+function LeaderboardRow({
+  entry,
+  onLayout,
+}: {
+  entry: LeaderboardEntry;
+  onLayout?: (y: number) => void;
+}) {
   return (
-    <View style={styles.row}>
+    <View
+      style={styles.row}
+      onLayout={
+        onLayout ? (e) => onLayout(e.nativeEvent.layout.y) : undefined
+      }
+    >
       <ImageBackground
         source={getRankShapeSource(entry.rank)}
         style={styles.rankBlock}
@@ -148,20 +161,21 @@ export default function Friends() {
     ? leaderboardData
     : leaderboardData.slice(0, 5);
 
-  // Tracks whether the user's actual rank row is currently on screen —
-  // the pinned indicator only hides while that row is visible.
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      const isVisible = viewableItems.some(
-        (v) => (v.item as LeaderboardEntry)?.rank === currentUser.rank
-      );
-      setUserRankVisible(isVisible);
-    }
-  ).current;
+  // Y-position of the row matching the user's actual rank (set via onLayout
+  // once it renders, only possible after expanding since it's outside the top 5).
+  const userRowY = useRef<number | null>(null);
+  const screenHeight = Dimensions.get('window').height;
 
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (userRowY.current === null) return;
+    const scrollY = e.nativeEvent.contentOffset.y;
+    const isOnScreen =
+      scrollY + screenHeight > userRowY.current &&
+      scrollY < userRowY.current + ROW_HEIGHT;
+    if (isOnScreen !== userRankVisible) {
+      setUserRankVisible(isOnScreen);
+    }
+  };
 
   if (!fontsLoaded) {
     return <View style={styles.screen} />;
@@ -169,21 +183,19 @@ export default function Friends() {
 
   return (
     <View style={styles.screen}>
-      <FlatList
+      <ScrollView
         style={{ flex: 1 }}
-        data={displayedData}
-        keyExtractor={(item) => String(item.rank)}
-        renderItem={({ item }) => <LeaderboardRow entry={item} />}
-        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        ListHeaderComponent={
-          <ImageBackground
-            source={require('@/assets/images/leaderboard.png')}
-            resizeMode="cover"
-            style={styles.header}
-          >
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <ImageBackground
+          source={require('@/assets/images/Leaderboawd.png')}
+          resizeMode="cover"
+          style={styles.background}
+        >
+          {/* Header */}
+          <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
@@ -198,19 +210,35 @@ export default function Friends() {
             <TouchableOpacity style={styles.filterPill}>
               <Text style={styles.filterText}>This Week</Text>
             </TouchableOpacity>
-          </ImageBackground>
-        }
-        ListFooterComponent={
-          !expanded ? (
-            <TouchableOpacity
-              style={styles.seeFullButton}
-              onPress={() => setExpanded(true)}
-            >
-              <Text style={styles.seeFullText}>See full leaderboard ↓</Text>
-            </TouchableOpacity>
-          ) : null
-        }
-      />
+          </View>
+
+          {/* Rows */}
+          <View style={styles.listContent}>
+            {displayedData.map((entry) => (
+              <LeaderboardRow
+                key={entry.rank}
+                entry={entry}
+                onLayout={
+                  entry.rank === currentUser.rank
+                    ? (y) => {
+                        userRowY.current = y;
+                      }
+                    : undefined
+                }
+              />
+            ))}
+
+            {!expanded && (
+              <TouchableOpacity
+                style={styles.seeFullButton}
+                onPress={() => setExpanded(true)}
+              >
+                <Text style={styles.seeFullText}>See full leaderboard ↓</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ImageBackground>
+      </ScrollView>
 
       {!userRankVisible && (
         <View style={styles.pinnedRow}>
@@ -223,13 +251,16 @@ export default function Friends() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FFFFFF' },
-  listContent: { paddingBottom: 100 },
-  header: {
+  background: {
     width: '100%',
-    height: HEADER_HEIGHT,
-    paddingHorizontal: 20,
-    paddingTop: 50,
+    paddingBottom: 40,
   },
+  listContent: { paddingBottom: 100 },
+header: {
+  paddingHorizontal: 20,
+  paddingTop: 50,
+  paddingBottom: 40, // was 240
+},
   backButton: {
     width: 44,
     height: 44,
@@ -280,8 +311,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rankNumber: {
-    fontFamily: 'Author-Variable',
-    fontWeight: 700,
+    fontFamily: 'Author-Bold',
     fontSize: 24,
     color: '#1B391C',
   },
@@ -291,12 +321,12 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   rowName: {
-    fontFamily: 'Author-Variable',
+    fontFamily: 'Author-Bold',
     fontSize: 18,
     color: '#1B391C',
   },
   rowBlooms: {
-    fontFamily: 'Author-Variable',
+    fontFamily: 'Author-Bold',
     fontSize: 13,
     color: '#8A8A8A',
     marginTop: 4,
@@ -309,7 +339,7 @@ const styles = StyleSheet.create({
     maxWidth: 90,
   },
   badgeText: {
-    fontFamily: 'Author-Variable',
+    fontFamily: 'Author-Bold',
     fontSize: 10,
     color: '#1B391C',
   },
@@ -318,7 +348,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   seeFullText: {
-    fontFamily: 'Author-Variable',
+    fontFamily: 'Author-Bold',
     fontSize: 15,
     color: '#D9637A',
   },
