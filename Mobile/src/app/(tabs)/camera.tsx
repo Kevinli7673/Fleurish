@@ -223,7 +223,7 @@ export default function CameraScreen() {
 
       console.log("Sighting successfully saved!");
       // Redirect back to Garden / Feed
-      router.replace("/(tabs)/(tabs)");
+      router.replace("/(tabs)");
     } catch (err: any) {
       setError(err.message || "Failed to save sighting");
       setStep(plantResult ? "result" : "unidentified");
