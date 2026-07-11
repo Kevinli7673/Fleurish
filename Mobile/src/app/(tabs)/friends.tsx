@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useFonts } from 'expo-font';
+import { PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
 
 type LeaderboardEntry = {
   rank: number;
@@ -137,6 +139,11 @@ export default function Friends() {
   const [expanded, setExpanded] = useState(false);
   const [userRankVisible, setUserRankVisible] = useState(false);
 
+  const [fontsLoaded] = useFonts({
+    PlayfairDisplay_700Bold,
+    'Author-Bold': require('@/assets/fonts/Author-Variable.ttf'),
+  });
+
   const displayedData = expanded
     ? leaderboardData
     : leaderboardData.slice(0, 5);
@@ -156,6 +163,10 @@ export default function Friends() {
     itemVisiblePercentThreshold: 50,
   }).current;
 
+  if (!fontsLoaded) {
+    return <View style={styles.screen} />;
+  }
+
   return (
     <View style={styles.screen}>
       <FlatList
@@ -169,7 +180,7 @@ export default function Friends() {
         viewabilityConfig={viewabilityConfig}
         ListHeaderComponent={
           <ImageBackground
-            source={require('@/assets/images/LeaderboardBG.png')}
+            source={require('@/assets/images/leaderboard.png')}
             resizeMode="cover"
             style={styles.header}
           >
@@ -269,7 +280,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rankNumber: {
-    fontFamily: 'PlayfairDisplay_700Bold',
+    fontFamily: 'Author-Variable',
+    fontWeight: 700,
     fontSize: 24,
     color: '#1B391C',
   },
@@ -279,12 +291,12 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   rowName: {
-    fontFamily: 'PlayfairDisplay_700Bold',
+    fontFamily: 'Author-Variable',
     fontSize: 18,
     color: '#1B391C',
   },
   rowBlooms: {
-    fontFamily: 'Author-Bold',
+    fontFamily: 'Author-Variable',
     fontSize: 13,
     color: '#8A8A8A',
     marginTop: 4,
@@ -297,7 +309,7 @@ const styles = StyleSheet.create({
     maxWidth: 90,
   },
   badgeText: {
-    fontFamily: 'Author-Bold',
+    fontFamily: 'Author-Variable',
     fontSize: 10,
     color: '#1B391C',
   },
@@ -306,7 +318,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   seeFullText: {
-    fontFamily: 'Author-Bold',
+    fontFamily: 'Author-Variable',
     fontSize: 15,
     color: '#D9637A',
   },
