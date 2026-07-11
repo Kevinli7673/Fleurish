@@ -10,10 +10,12 @@ import {
   Keyboard,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { getMyFinds, MyFind } from '@/lib/finds';
+import { supabase } from '@/lib/supabase';
 
 type Plant = {
   id: string;
@@ -36,14 +38,16 @@ function PlantCard({
   plant,
   index,
   highlighted,
+  onPress,
 }: {
   plant: Plant;
   index: number;
   highlighted: boolean;
+  onPress?: () => void;
 }) {
   const color = placeholderColors[index % placeholderColors.length];
   return (
-    <TouchableOpacity style={cardStyles.card} activeOpacity={0.8}>
+    <TouchableOpacity style={cardStyles.card} activeOpacity={0.8} onPress={onPress}>
       <View
         style={[
           cardStyles.imageWrap,
@@ -67,10 +71,11 @@ type SectionBlockProps = {
   section: Section;
   onLayout: (y: number) => void;
   highlightedPlantId: string | null;
+  onPressCard?: (sectionKey: string, plant: Plant) => void;
 };
 
 const SectionBlock = React.forwardRef<ScrollView, SectionBlockProps>(
-  ({ section, onLayout, highlightedPlantId }, ref) => {
+  ({ section, onLayout, highlightedPlantId, onPressCard }, ref) => {
     return (
       <View
         style={cardStyles.section}
@@ -83,14 +88,23 @@ const SectionBlock = React.forwardRef<ScrollView, SectionBlockProps>(
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={cardStyles.row}
         >
-          {section.data.map((plant, index) => (
-            <PlantCard
-              key={plant.id}
-              plant={plant}
-              index={index}
-              highlighted={highlightedPlantId === `${section.key}-${plant.id}`}
-            />
-          ))}
+          {section.data.length > 0 ? (
+            section.data.map((plant, index) => (
+              <PlantCard
+                key={plant.id}
+                plant={plant}
+                index={index}
+                highlighted={highlightedPlantId === `${section.key}-${plant.id}`}
+                onPress={() => onPressCard && onPressCard(section.key, plant)}
+              />
+            ))
+          ) : (
+            <Text style={cardStyles.emptyText}>
+              {section.key === 'myCollection' && "No logged plants yet. Scan some leaves!"}
+              {section.key === 'favorites' && "No favorite plants saved yet."}
+              {section.key === 'wantToFind' && "No wishlist plants added yet."}
+            </Text>
+          )}
         </ScrollView>
       </View>
     );
@@ -104,6 +118,8 @@ export default function Garden() {
     null
   );
   const [myFinds, setMyFinds] = useState<MyFind[]>([]);
+  const [favorites, setFavorites] = useState<Plant[]>([]);
+  const [wantToFind, setWantToFind] = useState<Plant[]>([]);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
@@ -134,6 +150,51 @@ export default function Garden() {
     image: find.photo_url ? { uri: find.photo_url } : require('@/assets/images/monstera.jpg'),
   }));
 
+  const handleCardPress = (sectionKey: string, plant: Plant) => {
+    if (sectionKey === 'myCollection') {
+      Alert.alert(
+        'Sighting Actions',
+        `Manage your logged plant: ${plant.name}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete Sighting',
+            style: 'destructive',
+            onPress: () => {
+              Alert.alert(
+                'Delete Sighting',
+                `Are you sure you want to delete ${plant.name} from your collection?`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        const { error } = await supabase
+                          .from('finds')
+                          .delete()
+                          .eq('id', plant.id);
+                        if (error) throw error;
+
+                        setMyFinds(prev => prev.filter(f => f.id !== plant.id));
+                        Alert.alert('Success', 'Sighting deleted successfully.');
+                      } catch (e: any) {
+                        Alert.alert('Error', e.message || 'Could not delete sighting.');
+                      }
+                    }
+                  }
+                ]
+              );
+            }
+          }
+        ]
+      );
+    } else {
+      Alert.alert(plant.name, `This is a plant in your ${sectionKey === 'favorites' ? 'favorites list' : 'wishlist'}.`);
+    }
+  };
+
   const sections: Section[] = [
     {
       key: 'myCollection',
@@ -143,20 +204,12 @@ export default function Garden() {
     {
       key: 'favorites',
       title: 'Favorites',
-      data: [
-        { id: 'fav1', name: 'Cherry Sage', image: require('@/assets/images/cherrysage.jpg') },
-        { id: 'fav2', name: 'Star Jasmine', image: require('@/assets/images/starjasmine.jpg') },
-        { id: 'fav3', name: 'Monstera', image: require('@/assets/images/monstera.jpg') },
-      ],
+      data: favorites,
     },
     {
       key: 'wantToFind',
       title: 'Want to Find',
-      data: [
-        { id: 'wtf1', name: 'Cherry Sage', image: require('@/assets/images/cherrysage.jpg') },
-        { id: 'wtf2', name: 'Star Jasmine', image: require('@/assets/images/starjasmine.jpg') },
-        { id: 'wtf3', name: 'Monstera', image: require('@/assets/images/monstera.jpg') },
-      ],
+      data: wantToFind,
     },
   ];
 
@@ -256,6 +309,7 @@ export default function Garden() {
                 key={section.key}
                 section={section}
                 highlightedPlantId={highlightedPlantId}
+                onPressCard={handleCardPress}
                 ref={(el) => {
                   sectionScrollRefs.current[section.key] = el;
                 }}
@@ -350,5 +404,13 @@ const cardStyles = StyleSheet.create({
     fontSize: 13,
     color: '#1B391C',
     marginTop: 6,
+  },
+  emptyText: {
+    fontFamily: 'Author-Bold',
+    fontSize: 14,
+    color: '#8A9A90',
+    paddingVertical: 20,
+    paddingHorizontal: 8,
+    fontStyle: 'italic',
   },
 });
