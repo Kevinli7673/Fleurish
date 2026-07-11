@@ -154,3 +154,114 @@ Queries user rankings by plant find count (bloom count).
     ]
   }
   ```
+
+---
+
+## 5. Send Friend Request (`send-friend-request`)
+Sends a pending friend request to another user.
+
+* **URL**: `/send-friend-request`
+* **Method**: `POST`
+* **Headers**:
+  * `Content-Type`: `application/json`
+  * `apikey`: `YOUR_SUPABASE_ANON_KEY`
+  * `Authorization`: `Bearer USER_JWT_TOKEN`
+* **Request Body**:
+  ```json
+  {
+    "friend_id": "3fe94230-0067-4111-a4ca-c0fe2f9da471"
+  }
+  ```
+* **Success Response (200 OK)**:
+  ```json
+  {
+    "status": "pending",
+    "friendship": {
+      "user_id": "d551053e-a3db-4231-9f94-5951b84908a3",
+      "friend_id": "3fe94230-0067-4111-a4ca-c0fe2f9da471",
+      "status": "pending",
+      "created_at": "2026-07-11T15:22:00.000Z"
+    }
+  }
+  ```
+
+---
+
+## 6. Respond Friend Request (`respond-friend-request`)
+Accepts or declines/deletes a pending friend request from another user.
+
+* **URL**: `/respond-friend-request`
+* **Method**: `POST`
+* **Headers**:
+  * `Content-Type`: `application/json`
+  * `apikey`: `YOUR_SUPABASE_ANON_KEY`
+  * `Authorization`: `Bearer USER_JWT_TOKEN`
+* **Request Body**:
+  ```json
+  {
+    "friend_id": "d551053e-a3db-4231-9f94-5951b84908a3", // The user who sent the request
+    "accept": true // true = accept, false = decline/delete
+  }
+  ```
+* **Success Response (200 OK - Accepted)**:
+  ```json
+  {
+    "status": "accepted",
+    "friendship": {
+      "user_id": "d551053e-a3db-4231-9f94-5951b84908a3",
+      "friend_id": "3fe94230-0067-4111-a4ca-c0fe2f9da471",
+      "status": "accepted",
+      "created_at": "2026-07-11T15:22:00.000Z"
+    }
+  }
+  ```
+* **Success Response (200 OK - Declined)**:
+  ```json
+  {
+    "status": "declined"
+  }
+  ```
+
+---
+
+## 7. Get Nearby Finds (`get-nearby-finds`)
+Queries public plant finds within a given geographic radius.
+
+* **URL**: `/get-nearby-finds`
+* **Method**: `POST`
+* **Headers**:
+  * `Content-Type`: `application/json`
+  * `apikey`: `YOUR_SUPABASE_ANON_KEY`
+  * `Authorization`: `Bearer USER_JWT_TOKEN`
+* **Request Body**:
+  ```json
+  {
+    "lat": 37.7749,
+    "lng": -122.4194,
+    "radius_m": 5000 // Optional (in meters, defaults to 5000)
+  }
+  ```
+* **Success Response (200 OK)**:
+  ```json
+  {
+    "finds": [
+      {
+        "id": "e305e718-ef44-46c5-8472-88229cd7bc9e",
+        "user_id": "d551053e-a3db-4231-9f94-5951b84908a3",
+        "plant_id": "8bfa27d0-1a6c-4876-8f3b-ea7a0e36504a",
+        "photo_url": "https://...",
+        "lat": 37.7749,
+        "lng": -122.4194,
+        "city": "San Francisco",
+        "caption": "Golden Gate Park!",
+        "confidence": 0.94,
+        "created_at": "2026-07-11T14:40:00.000Z",
+        "distance_meters": 0.0,
+        "common_name": "Monstera Deliciosa",
+        "scientific_name": "Monstera deliciosa",
+        "username": "Alice",
+        "avatar_url": "https://..."
+      }
+    ]
+  }
+  ```
