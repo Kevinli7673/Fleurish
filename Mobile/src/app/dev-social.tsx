@@ -1,5 +1,6 @@
 // DISPOSABLE — dev-only screen to exercise the social logic layer.
 // Delete this file during the UI integration pass; only src/lib/*.ts carries over.
+import { Asset } from 'expo-asset';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,6 +26,7 @@ import {
 } from '@/lib/friends';
 import { getLikeInfo, likeFind, LikeInfo, unlikeFind } from '@/lib/likes';
 import { getNotifications, Notification } from '@/lib/notifications';
+import { uploadAvatar } from '@/lib/profile';
 import { supabase } from '@/lib/supabase';
 
 export default function DevSocialScreen() {
@@ -36,6 +38,7 @@ export default function DevSocialScreen() {
   const [latestFind, setLatestFind] = useState<{ id: string; like: LikeInfo } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setMessage(null);
@@ -92,6 +95,31 @@ export default function DevSocialScreen() {
           <ThemedText type="subtitle">Dev: Social</ThemedText>
           {busy && <ActivityIndicator color={theme.text} />}
           {message && <ThemedText type="small">{message}</ThemedText>}
+
+          <ThemedText type="smallBold">Avatar</ThemedText>
+          <View style={styles.row}>
+            <Pressable
+              style={[styles.button, { backgroundColor: theme.text }]}
+              disabled={busy}
+              onPress={() =>
+                run(async () => {
+                  // Any bundled image works as a stand-in for a picked photo.
+                  const asset = Asset.fromModule(require('../../assets/images/icon.png'));
+                  await asset.downloadAsync();
+                  if (!asset.localUri) throw new Error('Could not load the test image.');
+                  setAvatarUrl(await uploadAvatar(asset.localUri));
+                }, 'Avatar uploaded')
+              }>
+              <ThemedText themeColor="background" type="smallBold">
+                Upload test avatar
+              </ThemedText>
+            </Pressable>
+          </View>
+          {avatarUrl && (
+            <ThemedText type="small" themeColor="textSecondary">
+              {avatarUrl}
+            </ThemedText>
+          )}
 
           <ThemedText type="smallBold">Search users</ThemedText>
           <View style={styles.searchRow}>

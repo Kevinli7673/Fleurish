@@ -1,3 +1,5 @@
+import { File } from 'expo-file-system';
+
 import { supabase } from '@/lib/supabase';
 
 export type Profile = {
@@ -53,7 +55,41 @@ export async function getProfile(userId: string): Promise<ProfileWithStats> {
   };
 }
 
-/** Update the current user's profile. Avatar upload is deferred (no storage bucket yet). */
+/**
+ * Upload a local image as the current user's avatar and save it to their profile.
+ * @param localUri file:// URI of the image (from image picker or camera)
+ * @returns the public URL of the uploaded avatar
+ */
+export async function uploadAvatar(localUri: string): Promise<string> {
+  const myId = await getMyUserId();
+
+  let bytes: Uint8Array;
+  try {
+    bytes = await new File(localUri).bytes();
+  } catch {
+    throw new Error('Could not read that image.');
+  }
+
+  // Unique name per upload — avoids stale image caches; RLS restricts to own folder.
+  const path = `${myId}/${Date.now()}.jpg`;
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(path, bytes, { contentType: 'image/jpeg' });
+  if (uploadError) throw new Error('Could not upload your avatar.');
+
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  const publicUrl = data.publicUrl;
+
+  const { error: updateError } = await supabase
+    .from('profiles')
+    .update({ avatar_url: publicUrl })
+    .eq('id', myId);
+  if (updateError) throw new Error('Could not save your new avatar.');
+
+  return publicUrl;
+}
+
+/** Update the current user's profile (avatar: see uploadAvatar). */
 export async function updateProfile(changes: { username?: string; bio?: string }): Promise<void> {
   const myId = await getMyUserId();
   const { error } = await supabase.from('profiles').update(changes).eq('id', myId);
