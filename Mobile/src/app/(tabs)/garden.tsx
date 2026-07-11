@@ -9,6 +9,7 @@ import {
   TextInput,
   Keyboard,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
@@ -17,6 +18,7 @@ import { getMyFinds, MyFind } from '@/lib/finds';
 type Plant = {
   id: string;
   name: string;
+  image?: any;
 };
 
 type Section = {
@@ -47,8 +49,13 @@ function PlantCard({
           cardStyles.imageWrap,
           { backgroundColor: color },
           highlighted && cardStyles.imageWrapHighlighted,
+          { overflow: 'hidden' },
         ]}
-      />
+      >
+        {plant.image && (
+          <Image source={plant.image} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        )}
+      </View>
       <Text style={cardStyles.name} numberOfLines={1}>
         {plant.name}
       </Text>
@@ -124,6 +131,7 @@ export default function Garden() {
   const dynamicCollection = myFinds.map(find => ({
     id: find.id,
     name: find.plants?.common_name ?? find.caption ?? 'Unknown Plant',
+    image: find.photo_url ? { uri: find.photo_url } : require('@/assets/images/monstera.jpg'),
   }));
 
   const sections: Section[] = [
@@ -136,18 +144,18 @@ export default function Garden() {
       key: 'favorites',
       title: 'Favorites',
       data: [
-        { id: 'fav1', name: 'Cherry Sage' },
-        { id: 'fav2', name: 'Star Jasmine' },
-        { id: 'fav3', name: 'Monstera' },
+        { id: 'fav1', name: 'Cherry Sage', image: require('@/assets/images/cherrysage.jpg') },
+        { id: 'fav2', name: 'Star Jasmine', image: require('@/assets/images/starjasmine.jpg') },
+        { id: 'fav3', name: 'Monstera', image: require('@/assets/images/monstera.jpg') },
       ],
     },
     {
       key: 'wantToFind',
       title: 'Want to Find',
       data: [
-        { id: 'wtf1', name: 'Cherry Sage' },
-        { id: 'wtf2', name: 'Star Jasmine' },
-        { id: 'wtf3', name: 'Monstera' },
+        { id: 'wtf1', name: 'Cherry Sage', image: require('@/assets/images/cherrysage.jpg') },
+        { id: 'wtf2', name: 'Star Jasmine', image: require('@/assets/images/starjasmine.jpg') },
+        { id: 'wtf3', name: 'Monstera', image: require('@/assets/images/monstera.jpg') },
       ],
     },
   ];
