@@ -1,98 +1,98 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ImageBackground, Animated } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFonts } from 'expo-font';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+export default function Index() {
+  const [fontsLoaded] = useFonts({
+    Mootjungle: require('@/assets/fonts/Mootjungle.ttf'),
+  });
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.92)).current;
+
+  useEffect(() => {
+    if (!fontsLoaded) return;
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 7,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) {
+    return <View style={styles.loadingContainer} />;
   }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <ImageBackground
+      source={require('@/assets/images/Background.png')}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <LinearGradient
+        colors={['#FCEDEB', '#F7F1E6', '#F6FDF3']}
+        locations={[0, 0.5, 1]}
+        style={[StyleSheet.absoluteFill, { opacity: 0.3 }]}
+        pointerEvents="none"
+      />
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+      <View style={styles.centerWrap}>
+        <Animated.View
+          style={{
+            opacity: fadeAnim,
+            transform: [{ scale: scaleAnim }],
+            alignItems: 'center',
+          }}
+        >
+          <Text style={styles.title}>Fleurish</Text>
+          <Text style={styles.tagline}>Rooted in discovery!</Text>
+        </Animated.View>
+      </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#F7F1E6',
+  },
+  background: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  centerWrap: {
     flex: 1,
     justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
+    paddingHorizontal: 24,
   },
   title: {
+    fontFamily: 'Mootjungle',
+    fontSize: 52,
+    color: '#2F4F3E',
+    letterSpacing: 0.5,
     textAlign: 'center',
+    textShadowColor: 'rgba(255,255,255,0.55)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
   },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  tagline: {
+    fontFamily: 'Mootjungle',
+    fontSize: 28,
+    color: '#4B6355',
+    letterSpacing: 1.2,
+    marginTop: -20,
+    textAlign: 'center',
   },
 });
