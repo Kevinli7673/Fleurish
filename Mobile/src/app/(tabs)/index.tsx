@@ -69,7 +69,7 @@ export default function Feed() {
         try {
           const { data, error } = await supabase
             .from('finds')
-            .select('id, photo_url, caption, city, confidence, created_at, plants(common_name), profiles(username, avatar_url)')
+            .select('id, photo_url, caption, city, confidence, created_at, plants(common_name), profiles!finds_user_id_fkey(username, avatar_url)')
             .order('created_at', { ascending: false })
             .limit(10);
 
