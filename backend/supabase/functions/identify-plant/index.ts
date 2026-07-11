@@ -1,46 +1,130 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Setup type definitions for built-in Supabase Runtime APIs
-import "@supabase/functions-js/edge-runtime.d.ts";
-import { withSupabase } from "@supabase/server";
-
-console.log("Hello from Functions!");
-
-// This endpoint uses 'publishable' | 'secret' access, apiKey is required.
-// Use publishable for Client-facing, key-validated endpoints
-// Use secret for Server-to-server, internal calls
-export default {
-  fetch: withSupabase({ auth: ["publishable", "secret"] }, async (req, ctx) => {
-    // Called by another service with a secret key
-    // ctx.supabaseAdmin bypasses RLS — use for privileged operations
-    /*
-    if (ctx.authMode === "secret") {
-      const { user_id } = await req.json();
-      const { data } = await ctx.supabaseAdmin.auth.admin.getUserById(user_id);
-
-      return Response.json({
-        email: data?.user?.email,
-      });
-    }
-    */
-
-    const { name } = await req.json();
-
-    return Response.json({
-      message: `Hello ${name}!`,
-    });
-  }),
+export const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-/* To invoke locally:
+Deno.serve(async (req) => {
+  // Handle CORS preflight request
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
-  1. Run `supabase start` (see: https://supabase.com/docs/reference/cli/supabase-start)
-  2. Make an HTTP request:
+  try {
+    const { image } = await req.json();
 
-  curl -i --location --request POST 'http://127.0.0.1:54321/functions/v1/identify-plant' \
-    --header 'apiKey: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH' \
-    --data '{"name":"Functions"}'
+    if (!image) {
+      return new Response(
+        JSON.stringify({ error: "Missing image parameter (base64 string required)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-*/
+    const apiKey = Deno.env.get("PLANT_ID_API_KEY");
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "Plant.id API key is not configured on the server" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Call Plant.id API v3
+    console.log("Calling Plant.id identification endpoint...");
+    const plantIdRes = await fetch("https://api.plant.id/v3/identification", {
+      method: "POST",
+      headers: {
+        "Api-Key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        images: [image],
+        similar_images: true,
+      }),
+    });
+
+    if (!plantIdRes.ok) {
+      const errText = await plantIdRes.text();
+      console.error(`Plant.id error: ${plantIdRes.status} ${errText}`);
+      return new Response(
+        JSON.stringify({ error: "Plant identification service failed", details: errText }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const plantIdData = await plantIdRes.json();
+    const suggestions = plantIdData.result?.classification?.suggestions;
+
+    if (!suggestions || suggestions.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "No plants were identified in the image" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get the top suggestion
+    const bestSuggestion = suggestions[0];
+    const scientificName = bestSuggestion.name;
+    const commonName = bestSuggestion.details?.common_names?.[0] || bestSuggestion.name;
+    const confidence = bestSuggestion.probability;
+
+    // Initialize Supabase Client with service role key to insert/query reference table
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Check if the plant already exists in the database
+    console.log(`Checking database for plant: ${scientificName}`);
+    let { data: plant, error: queryErr } = await supabaseClient
+      .from("plants")
+      .select("*")
+      .ilike("scientific_name", scientificName)
+      .maybeSingle();
+
+    if (queryErr) {
+      console.error("Database query error:", queryErr.message);
+    }
+
+    // If it doesn't exist, seed it dynamically
+    if (!plant) {
+      console.log(`Plant not found in database. Seeding new plant row: ${scientificName}`);
+      const { data: newPlant, error: insertErr } = await supabaseClient
+        .from("plants")
+        .insert({
+          common_name: commonName.split(',')[0].trim().replace(/\b\w/g, c => c.toUpperCase()),
+          scientific_name: scientificName,
+          care_tips: "Provide bright indirect light. Allow the soil to dry out between waterings. Clean the leaves with a damp cloth.",
+          light_requirement: "Bright indirect light",
+          water_requirement: "Moderate water"
+        })
+        .select()
+        .single();
+
+      if (insertErr) {
+        console.error("Database insert error:", insertErr.message);
+        throw new Error(`Failed to seed plant in database: ${insertErr.message}`);
+      }
+      plant = newPlant;
+    }
+
+    return new Response(
+      JSON.stringify({
+        plant_id: plant.id,
+        common_name: plant.common_name,
+        scientific_name: plant.scientific_name,
+        confidence: Number(confidence.toFixed(2)),
+        care_tips: plant.care_tips,
+        light_requirement: plant.light_requirement,
+        water_requirement: plant.water_requirement
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+
+  } catch (error) {
+    console.error("Internal error:", error.message);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
