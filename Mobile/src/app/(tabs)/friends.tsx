@@ -160,7 +160,7 @@ export default function Friends() {
             const mapped: LeaderboardEntry[] = data.rankings.map((r: any, idx: number) => ({
               rank: idx + 1,
               name: r.username || 'Sprout finder',
-              blooms: r.blooms || 0,
+              blooms: r.bloom_count || 0,
               badge: BADGE_TYPES[idx % BADGE_TYPES.length].label,
               isCurrentUser: r.user_id === userId,
             }));
