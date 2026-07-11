@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
-import { File } from "expo-file-system";
+import { decode } from "base64-arraybuffer";
+import * as FileSystem from "expo-file-system";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -182,12 +183,14 @@ export default function CameraScreen() {
       }
 
       const fileName = `${userId}/${Date.now()}.jpg`;
-      const bytes = await new File(photoUri).bytes();
+      const base64 = await FileSystem.readAsStringAsync(photoUri, {
+        encoding: "base64",
+      });
 
       console.log("Uploading photo to Supabase Storage...");
       const { error: uploadErr } = await supabase.storage
         .from("plant-photos")
-        .upload(fileName, bytes, {
+        .upload(fileName, decode(base64), {
           contentType: "image/jpeg",
         });
 
