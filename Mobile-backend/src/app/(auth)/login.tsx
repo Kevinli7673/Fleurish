@@ -1,0 +1,282 @@
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useFonts } from 'expo-font';
+import { PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+
+import { supabase } from '@/lib/supabase';
+
+export default function LoginScreen() {
+  const router = useRouter();
+  const [fontsLoaded] = useFonts({
+    PlayfairDisplay_700Bold,
+    'Author-Variable': require('@/assets/fonts/Author-Variable.ttf'),
+  });
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  if (!fontsLoaded) {
+    return <View style={styles.loadingContainer} />;
+  }
+
+  async function handleLogin() {
+    setError(null);
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    setLoading(false);
+
+    if (!error) return; // session change redirects into the app
+
+    if (error.message.toLowerCase().includes('email not confirmed')) {
+      await supabase.auth.resend({ type: 'signup', email });
+      router.push({ pathname: '/(auth)/verify', params: { email } });
+      return;
+    }
+    setError(error.message);
+  }
+
+  return (
+    <ImageBackground
+      source={require('@/assets/images/LoginBG.png')}
+      style={styles.background}
+      resizeMode="cover">
+      <Pressable style={styles.backButton} onPress={() => router.replace('/')}>
+        <Ionicons name="arrow-back" size={26} color="#2F4F3E" />
+      </Pressable>
+
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled">
+          <Text style={styles.title}>Login</Text>
+
+          <Text style={styles.label}>Email:</Text>
+          <View style={styles.inputWrapper}>
+            <MaterialCommunityIcons
+              name="email-outline"
+              size={20}
+              color="#8A8A8A"
+              style={styles.inputIcon}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your email"
+              placeholderTextColor="#A8A8A8"
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+            />
+          </View>
+
+          <Text style={styles.label}>Password:</Text>
+          <View style={styles.inputWrapper}>
+            <MaterialCommunityIcons
+              name="lock-outline"
+              size={20}
+              color="#8A8A8A"
+              style={styles.inputIcon}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter password"
+              placeholderTextColor="#A8A8A8"
+              autoComplete="password"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+          </View>
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <Pressable style={styles.forgotWrapper} onPress={() => router.push('/forgpassword')}>
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.primaryButton, loading && styles.buttonDisabled]}
+            disabled={loading || !email || !password}
+            onPress={handleLogin}>
+            {loading ? (
+              <ActivityIndicator color="#2F4F3E" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Let's go!</Text>
+            )}
+          </Pressable>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <Pressable style={styles.socialButton}>
+            <MaterialCommunityIcons name="google" size={20} color="#2F4F3E" />
+            <Text style={styles.socialButtonText}>Login with Google</Text>
+          </Pressable>
+
+          <Pressable style={styles.socialButton}>
+            <MaterialCommunityIcons name="apple" size={20} color="#2F4F3E" />
+            <Text style={styles.socialButtonText}>Login with Apple</Text>
+          </Pressable>
+
+          <Text style={styles.footerText}>
+            Not a member?{' '}
+            <Text style={styles.footerLink} onPress={() => router.push('/signup')}>
+              Create Account.
+            </Text>
+          </Text>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </ImageBackground>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#FCEDEB',
+  },
+  background: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  backButton: {
+    position: 'absolute',
+    top: '6%',
+    left: 20,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingTop: '30%',
+    paddingBottom: '12%',
+    paddingHorizontal: 24,
+  },
+  title: {
+    fontFamily: 'PlayfairDisplay_700Bold',
+    fontSize: 40,
+    color: '#2F4F3E',
+    marginBottom: 20,
+  },
+  label: {
+    fontFamily: 'Author-Variable',
+    fontSize: 20,
+    color: '#2F4F3E',
+    marginBottom: 6,
+    marginTop: 25,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    paddingHorizontal: 16,
+    height: 48,
+  },
+  inputIcon: {
+    marginRight: 8,
+  },
+  error: {
+    color: '#e5484d',
+    fontFamily: 'Author-Variable',
+    marginTop: 10,
+  },
+  input: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+  },
+  forgotWrapper: {
+    alignSelf: 'flex-end',
+    marginTop: 10,
+  },
+  forgotText: {
+    fontSize: 13,
+    color: '#2F4F3E',
+    fontFamily: 'Author-Variable',
+    textDecorationLine: 'underline',
+  },
+  primaryButton: {
+    backgroundColor: '#E8A83D',
+    borderRadius: 26,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 28,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  primaryButtonText: {
+    fontFamily: 'Author-Variable',
+    fontWeight: '700',
+    fontSize: 20,
+    color: '#2F4F3E',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 18,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(47,79,62,0.24)',
+  },
+  dividerText: {
+    marginHorizontal: 12,
+    fontFamily: 'Author-Variable',
+    color: '#2F4F3E',
+  },
+  socialButton: {
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.84)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  socialButtonText: {
+    fontFamily: 'Author-Variable',
+    fontWeight: '700',
+    fontSize: 16,
+    color: '#2F4F3E',
+  },
+  footerText: {
+    marginTop: 6,
+    textAlign: 'center',
+    fontFamily: 'Author-Variable',
+    color: '#2F4F3E',
+  },
+  footerLink: {
+    textDecorationLine: 'underline',
+  },
+});
