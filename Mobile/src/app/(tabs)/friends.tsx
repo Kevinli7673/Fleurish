@@ -3,14 +3,18 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
   ImageBackground,
   TouchableOpacity,
-  ViewToken,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Dimensions,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useFonts } from 'expo-font';
+import { PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
 import { supabase } from '@/lib/supabase';
 
 type LeaderboardEntry = {
@@ -29,52 +33,7 @@ const BADGE_TYPES = [
   { label: 'Pollinator Pro', color: '#F5D68A' },
 ];
 
-const FIRST_NAMES = [
-  'Chrissy', 'Liam', 'Emma', 'Noah', 'Ava', 'Ethan', 'Sophia', 'Mason',
-  'Isabella', 'Lucas', 'Mia', 'Elijah', 'Amelia', 'James', 'Harper',
-  'Benjamin', 'Evelyn', 'Henry', 'Luna', 'Alexander', 'Ella', 'Sebastian',
-  'Grace', 'Jack', 'Chloe', 'Owen', 'Aria', 'Daniel', 'Scarlett', 'Matthew',
-];
-
-function getRandomName(i: number) {
-  const first = FIRST_NAMES[i % FIRST_NAMES.length];
-  const initialCode = 65 + ((i * 7) % 26); // spreads initials out, deterministic
-  const initial = String.fromCharCode(initialCode);
-  return `${first} ${initial}.`;
-}
-
-const HEADER_HEIGHT = 260;
-
-// Placeholder data — swap with real friend rankings once available
-function generateLeaderboard(): LeaderboardEntry[] {
-  const entries: LeaderboardEntry[] = [];
-  const fixedTop = [3840, 2540, 2430, 1420, 1420];
-
-  for (let i = 1; i <= 100; i++) {
-    const blooms =
-      i <= fixedTop.length
-        ? fixedTop[i - 1]
-        : Math.max(50, 1400 - (i - 5) * 13);
-    entries.push({
-      rank: i,
-      name: getRandomName(i),
-      blooms,
-      badge: BADGE_TYPES[i % BADGE_TYPES.length].label,
-    });
-  }
-  return entries;
-}
-
-const leaderboardData = generateLeaderboard();
-
-// Placeholder for the current user — swap with real user data/rank
-const currentUser: LeaderboardEntry = {
-  rank: 67,
-  name: 'Your Name',
-  blooms: 430,
-  badge: 'Shade Lover',
-  isCurrentUser: true,
-};
+const ROW_HEIGHT = 104; // row height (90) + marginTop (14)
 
 function getRankTier(rank: number): 'gold' | 'silver' | 'bronze' | 'pink' {
   if (rank === 1) return 'gold';
@@ -83,7 +42,6 @@ function getRankTier(rank: number): 'gold' | 'silver' | 'bronze' | 'pink' {
   return 'pink';
 }
 
-// Swap these for your actual exported shape/pfp asset filenames
 function getRankShapeSource(rank: number) {
   const tier = getRankTier(rank);
   switch (tier) {
@@ -102,9 +60,20 @@ function getBadgeColor(label: string) {
   return BADGE_TYPES.find((b) => b.label === label)?.color ?? '#E893A4';
 }
 
-function LeaderboardRow({ entry }: { entry: LeaderboardEntry }) {
+function LeaderboardRow({
+  entry,
+  onLayout,
+}: {
+  entry: LeaderboardEntry;
+  onLayout?: (y: number) => void;
+}) {
   return (
-    <View style={styles.row}>
+    <View
+      style={styles.row}
+      onLayout={
+        onLayout ? (e) => onLayout(e.nativeEvent.layout.y) : undefined
+      }
+    >
       <ImageBackground
         source={getRankShapeSource(entry.rank)}
         style={styles.rankBlock}
@@ -141,6 +110,11 @@ export default function Friends() {
   const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
   const [currentUserRank, setCurrentUserRank] = useState<LeaderboardEntry | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [fontsLoaded] = useFonts({
+    PlayfairDisplay_700Bold,
+    'Author-Bold': require('@/assets/fonts/Author-Variable.ttf'),
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -208,21 +182,21 @@ export default function Friends() {
     ? rankings
     : rankings.slice(0, 5);
 
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (!currentUserRank) return;
-      const isVisible = viewableItems.some(
-        (v) => (v.item as LeaderboardEntry)?.rank === currentUserRank.rank
-      );
-      setUserRankVisible(isVisible);
+  const userRowY = useRef<number | null>(null);
+  const screenHeight = Dimensions.get('window').height;
+
+  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (userRowY.current === null) return;
+    const scrollY = e.nativeEvent.contentOffset.y;
+    const isOnScreen =
+      scrollY + screenHeight > userRowY.current &&
+      scrollY < userRowY.current + ROW_HEIGHT;
+    if (isOnScreen !== userRankVisible) {
+      setUserRankVisible(isOnScreen);
     }
-  ).current;
+  };
 
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
-
-  if (loading && rankings.length === 0) {
+  if (!fontsLoaded || (loading && rankings.length === 0)) {
     return (
       <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color="#1B391C" />
@@ -232,21 +206,19 @@ export default function Friends() {
 
   return (
     <View style={styles.screen}>
-      <FlatList
+      <ScrollView
         style={{ flex: 1 }}
-        data={displayedData}
-        keyExtractor={(item) => String(item.rank) + '-' + item.name}
-        renderItem={({ item }) => <LeaderboardRow entry={item} />}
-        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        ListHeaderComponent={
-          <ImageBackground
-            source={require('@/assets/images/LeaderboardBG.png')}
-            resizeMode="cover"
-            style={styles.header}
-          >
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <ImageBackground
+          source={require('@/assets/images/Leaderboawd.png')}
+          resizeMode="cover"
+          style={styles.background}
+        >
+          {/* Header */}
+          <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
@@ -259,23 +231,39 @@ export default function Friends() {
             </View>
 
             <TouchableOpacity style={styles.filterPill}>
-              <Text style={styles.filterText}>All Time</Text>
+              <Text style={styles.filterText}>This Week</Text>
             </TouchableOpacity>
-          </ImageBackground>
-        }
-        ListFooterComponent={
-          !expanded && rankings.length > 5 ? (
-            <TouchableOpacity
-              style={styles.seeFullButton}
-              onPress={() => setExpanded(true)}
-            >
-              <Text style={styles.seeFullText}>See full leaderboard ↓</Text>
-            </TouchableOpacity>
-          ) : null
-        }
-      />
+          </View>
 
-      {currentUserRank && !userRankVisible && (
+          {/* Rows */}
+          <View style={styles.listContent}>
+            {displayedData.map((entry) => (
+              <LeaderboardRow
+                key={entry.rank}
+                entry={entry}
+                onLayout={
+                  currentUserRank && entry.rank === currentUserRank.rank
+                    ? (y) => {
+                        userRowY.current = y;
+                      }
+                    : undefined
+                }
+              />
+            ))}
+
+            {!expanded && rankings.length > 5 && (
+              <TouchableOpacity
+                style={styles.seeFullButton}
+                onPress={() => setExpanded(true)}
+              >
+                <Text style={styles.seeFullText}>See full leaderboard ↓</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </ImageBackground>
+      </ScrollView>
+
+      {!userRankVisible && currentUserRank && (
         <View style={styles.pinnedRow}>
           <LeaderboardRow entry={currentUserRank} />
         </View>
@@ -286,12 +274,15 @@ export default function Friends() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#FFFFFF' },
+  background: {
+    width: '100%',
+    paddingBottom: 40,
+  },
   listContent: { paddingBottom: 100 },
   header: {
-    width: '100%',
-    height: HEADER_HEIGHT,
     paddingHorizontal: 20,
     paddingTop: 50,
+    paddingBottom: 40,
   },
   backButton: {
     width: 44,
@@ -343,7 +334,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rankNumber: {
-    fontFamily: 'PlayfairDisplay_700Bold',
+    fontFamily: 'Author-Bold',
     fontSize: 24,
     color: '#1B391C',
   },
@@ -353,7 +344,7 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   rowName: {
-    fontFamily: 'PlayfairDisplay_700Bold',
+    fontFamily: 'Author-Bold',
     fontSize: 18,
     color: '#1B391C',
   },
