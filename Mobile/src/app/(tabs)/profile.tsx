@@ -304,8 +304,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   profileBannerImage: {
-    width: '100%',
-    height: '100%',
+    width: '140%',
+    height: '140%',
+    position: 'absolute',
+    left: '-20%',
+    top: '-20%',
     resizeMode: 'cover',
   },
   avatar: {
