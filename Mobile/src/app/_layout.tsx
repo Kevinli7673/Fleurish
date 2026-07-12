@@ -1,33 +1,43 @@
-import { Stack } from 'expo-router';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
-
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { useEffect } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { ProfileProvider } from '@/context/profilecontext';
 import { useSession } from '@/hooks/use-session';
 
-SplashScreen.preventAutoHideAsync();
-
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const { session, isLoading } = useSession();
+  const router = useRouter();
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const segs = segments as string[];
+    const currentRoute = segs[0] || 'index';
+    const isAuthScreen = ['login', 'signup', 'verify', 'forgpassword'].includes(currentRoute) || 
+                         (segs.length === 1 && currentRoute === 'index') || 
+                         segs.length === 0;
+
+    if (session && isAuthScreen) {
+      // Redirect to tabs if logged in and trying to access auth screens
+      router.replace('/(tabs)');
+    } else if (!session && !isAuthScreen) {
+      // Redirect to landing if not logged in and trying to access app screens
+      router.replace('/');
+    }
+  }, [session, isLoading, segments]);
 
   if (isLoading) {
-    // Keep the native splash screen visible until the stored session is restored.
-    return null;
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FCEDEB' }}>
+        <ActivityIndicator size="large" color="#1B391C" />
+      </View>
+    );
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Protected guard={!!session}>
-          <Stack.Screen name="(tabs)" />
-        </Stack.Protected>
-        <Stack.Protected guard={!session}>
-          <Stack.Screen name="(auth)" />
-        </Stack.Protected>
-      </Stack>
-    </ThemeProvider>
+    <ProfileProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </ProfileProvider>
   );
 }

@@ -22,6 +22,7 @@ export type PlantSummary = {
 
 export type MyFind = {
   id: string;
+  plant_id: string | null;
   photo_url: string;
   caption: string | null;
   confidence: number | null;
@@ -151,7 +152,7 @@ export async function getMyFinds(): Promise<MyFind[]> {
   const myId = await getMyUserId();
   const { data, error } = await supabase
     .from('finds')
-    .select('id, photo_url, caption, confidence, created_at, plants(common_name, scientific_name)')
+    .select('id, plant_id, photo_url, caption, confidence, created_at, plants(common_name, scientific_name)')
     .eq('user_id', myId)
     .order('created_at', { ascending: false });
   if (error) throw new Error('Could not load your garden.');

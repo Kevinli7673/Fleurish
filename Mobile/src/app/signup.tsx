@@ -1,70 +1,103 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
+  View,
   Text,
   TextInput,
-  View,
+  StyleSheet,
+  ImageBackground,
+  Pressable,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useFonts } from 'expo-font';
-import { PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-
+import {
+  PlayfairDisplay_700Bold,
+} from '@expo-google-fonts/playfair-display';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
-export default function LoginScreen() {
+export default function Signup() {
   const router = useRouter();
-  const [fontsLoaded] = useFonts({
-    PlayfairDisplay_700Bold,
-    'Author-Variable': require('@/assets/fonts/Author-Variable.ttf'),
-  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  async function handleSignUp() {
+    setError(null);
+    setLoading(true);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
+    });
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    if (data.user) {
+      router.push({ pathname: '/verify', params: { email } });
+    }
+  }
+
+  const [fontsLoaded] = useFonts({
+    PlayfairDisplay_700Bold,
+    'Author-Variable': require('@/assets/fonts/Author-Variable.ttf'),
+  });
+
   if (!fontsLoaded) {
     return <View style={styles.loadingContainer} />;
   }
 
-  async function handleLogin() {
-    setError(null);
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-
-    if (!error) return; // session change redirects into the app
-
-    if (error.message.toLowerCase().includes('email not confirmed')) {
-      await supabase.auth.resend({ type: 'signup', email });
-      router.push({ pathname: '/(auth)/verify', params: { email } });
-      return;
-    }
-    setError(error.message);
-  }
-
   return (
     <ImageBackground
-      source={require('@/assets/images/LoginBG.png')}
+      source={require('@/assets/images/RegisterBG.png')}
       style={styles.background}
-      resizeMode="cover">
-      <Pressable style={styles.backButton} onPress={() => router.replace('/')}>
+      resizeMode="cover"
+    >
+      <Pressable style={styles.backButton} onPress={() => router.replace('/?screen=auth')}>
         <Ionicons name="arrow-back" size={26} color="#2F4F3E" />
       </Pressable>
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Login</Text>
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={styles.title}>Register</Text>
+
+          <Text style={styles.label}>Full Name:</Text>
+          <View style={styles.inputWrapper}>
+            <MaterialCommunityIcons
+              name="account-outline"
+              size={20}
+              color="#8A8A8A"
+              style={styles.inputIcon}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your full name"
+              placeholderTextColor="#A8A8A8"
+              value={fullName}
+              onChangeText={setFullName}
+              autoCapitalize="words"
+            />
+          </View>
 
           <Text style={styles.label}>Email:</Text>
           <View style={styles.inputWrapper}>
@@ -78,11 +111,10 @@ export default function LoginScreen() {
               style={styles.input}
               placeholder="Enter your email"
               placeholderTextColor="#A8A8A8"
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
               value={email}
               onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
             />
           </View>
 
@@ -98,27 +130,32 @@ export default function LoginScreen() {
               style={styles.input}
               placeholder="Enter password"
               placeholderTextColor="#A8A8A8"
-              autoComplete="password"
-              secureTextEntry
               value={password}
               onChangeText={setPassword}
+              secureTextEntry={!showPassword}
             />
+            <Pressable onPress={() => setShowPassword(!showPassword)}>
+              <MaterialCommunityIcons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color="#8A8A8A"
+              />
+            </Pressable>
           </View>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <Pressable style={styles.forgotWrapper} onPress={() => router.push('/forgpassword')}>
-            <Text style={styles.forgotText}>Forgot Password?</Text>
-          </Pressable>
+          {error && (
+            <Text style={styles.errorText}>{error}</Text>
+          )}
 
           <Pressable
-            style={[styles.primaryButton, loading && styles.buttonDisabled]}
-            disabled={loading || !email || !password}
-            onPress={handleLogin}>
+            style={styles.primaryButton}
+            onPress={handleSignUp}
+            disabled={loading}
+          >
             {loading ? (
-              <ActivityIndicator color="#2F4F3E" />
+              <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.primaryButtonText}>Let's go!</Text>
+              <Text style={styles.primaryButtonText}>Let's begin!</Text>
             )}
           </Pressable>
 
@@ -130,18 +167,18 @@ export default function LoginScreen() {
 
           <Pressable style={styles.socialButton}>
             <MaterialCommunityIcons name="google" size={20} color="#2F4F3E" />
-            <Text style={styles.socialButtonText}>Login with Google</Text>
+            <Text style={styles.socialButtonText}>Sign up with Google</Text>
           </Pressable>
 
           <Pressable style={styles.socialButton}>
             <MaterialCommunityIcons name="apple" size={20} color="#2F4F3E" />
-            <Text style={styles.socialButtonText}>Login with Apple</Text>
+            <Text style={styles.socialButtonText}>Sign up with Apple</Text>
           </Pressable>
 
           <Text style={styles.footerText}>
-            Not a member?{' '}
-            <Text style={styles.footerLink} onPress={() => router.push('/signup')}>
-              Create Account.
+            Already a member?{' '}
+            <Text style={styles.footerLink} onPress={() => router.push('/login')}>
+              Login.
             </Text>
           </Text>
         </ScrollView>
@@ -186,10 +223,10 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: 'Author-Variable',
-    fontSize: 20,
+    fontSize: 15,
     color: '#2F4F3E',
     marginBottom: 6,
-    marginTop: 25,
+    marginTop: 14,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -202,25 +239,10 @@ const styles = StyleSheet.create({
   inputIcon: {
     marginRight: 8,
   },
-  error: {
-    color: '#e5484d',
-    fontFamily: 'Author-Variable',
-    marginTop: 10,
-  },
   input: {
     flex: 1,
     fontSize: 14,
     color: '#333',
-  },
-  forgotWrapper: {
-    alignSelf: 'flex-end',
-    marginTop: 10,
-  },
-  forgotText: {
-    fontSize: 13,
-    color: '#2F4F3E',
-    fontFamily: 'Author-Variable',
-    textDecorationLine: 'underline',
   },
   primaryButton: {
     backgroundColor: '#E8A83D',
@@ -230,53 +252,56 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 28,
   },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
   primaryButtonText: {
-    fontFamily: 'Author-Variable',
-    fontWeight: '700',
-    fontSize: 20,
-    color: '#2F4F3E',
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 18,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(47,79,62,0.24)',
-  },
-  dividerText: {
-    marginHorizontal: 12,
-    fontFamily: 'Author-Variable',
-    color: '#2F4F3E',
-  },
-  socialButton: {
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.84)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 14,
-  },
-  socialButtonText: {
     fontFamily: 'Author-Variable',
     fontWeight: '700',
     fontSize: 16,
     color: '#2F4F3E',
   },
-  footerText: {
-    marginTop: 6,
-    textAlign: 'center',
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E8A83D',
+  },
+  dividerText: {
     fontFamily: 'Author-Variable',
+    fontSize: 14,
     color: '#2F4F3E',
+    marginHorizontal: 12,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 15,
+    height: 48,
+    marginBottom: 12,
+  },
+  socialButtonText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 10,
+  },
+  footerText: {
+    fontSize: 13,
+    color: '#2F4F3E',
+    textAlign: 'center',
+    marginTop: 8,
   },
   footerLink: {
     textDecorationLine: 'underline',
+    fontFamily: 'Author-Variable',
+  },
+  errorText: {
+    color: '#e5484d',
+    marginVertical: 8,
+    textAlign: 'center',
+    fontFamily: 'Author-Variable',
   },
 });

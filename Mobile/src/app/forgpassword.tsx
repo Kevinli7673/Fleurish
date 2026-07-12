@@ -1,73 +1,58 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
+  View,
   Text,
   TextInput,
-  View,
+  StyleSheet,
+  ImageBackground,
+  Pressable,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useFonts } from 'expo-font';
-import { PlayfairDisplay_700Bold } from '@expo-google-fonts/playfair-display';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-
-import { supabase } from '@/lib/supabase';
+import {
+  PlayfairDisplay_700Bold,
+} from '@expo-google-fonts/playfair-display';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 
 export default function ForgotPassword() {
   const router = useRouter();
+  const [email, setEmail] = useState('');
+
   const [fontsLoaded] = useFonts({
     PlayfairDisplay_700Bold,
     'Author-Variable': require('@/assets/fonts/Author-Variable.ttf'),
   });
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
   if (!fontsLoaded) {
     return <View style={styles.loadingContainer} />;
-  }
-
-  async function handleReset() {
-    setError(null);
-    setNotice(null);
-    setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
-    setLoading(false);
-
-    if (error) {
-      setError(error.message);
-      return;
-    }
-
-    setNotice('Password reset instructions are on the way.');
   }
 
   return (
     <ImageBackground
       source={require('@/assets/images/ForgotPasswordBG.png')}
       style={styles.background}
-      resizeMode="cover">
+      resizeMode="cover"
+    >
       <Pressable style={styles.backButton} onPress={() => router.back()}>
         <Ionicons name="arrow-back" size={26} color="#2F4F3E" />
       </Pressable>
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+        >
           <Text style={styles.title}>{'Forgot\nPassword'}</Text>
 
           <Text style={styles.subtitle}>
-            Please enter the email you created your account with for the password reset
-            information to be sent:
+            Please enter the email you created your account with for the
+            password reset information to be sent:
           </Text>
 
           <Text style={styles.label}>Email:</Text>
@@ -89,21 +74,14 @@ export default function ForgotPassword() {
             />
           </View>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-
-          <Pressable
-            style={[styles.primaryButton, loading && styles.buttonDisabled]}
-            disabled={loading || !email}
-            onPress={handleReset}>
-            {loading ? (
-              <ActivityIndicator color="#2F4F3E" />
-            ) : (
-              <Text style={styles.primaryButtonText}>Send reset link  →</Text>
-            )}
+          <Pressable style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>Send reset link  →</Text>
           </Pressable>
 
-          <Pressable style={styles.secondaryButton} onPress={() => router.replace('/login')}>
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => router.replace('/login')}
+          >
             <Text style={styles.secondaryButtonText}>Back to Login</Text>
           </Pressable>
         </ScrollView>
@@ -144,7 +122,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PlayfairDisplay_700Bold',
     fontSize: 48,
     lineHeight: 40,
-    textAlign: 'center',
+    textAlign:'center',
     color: '#2F4F3E',
     marginBottom: 60,
   },
@@ -178,16 +156,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
-  error: {
-    color: '#e5484d',
-    fontFamily: 'Author-Variable',
-    marginTop: 12,
-  },
-  notice: {
-    color: '#2F4F3E',
-    fontFamily: 'Author-Variable',
-    marginTop: 12,
-  },
   primaryButton: {
     backgroundColor: '#E8A83D',
     borderRadius: 26,
@@ -197,12 +165,9 @@ const styles = StyleSheet.create({
     marginTop: 40,
     marginBottom: 22,
   },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
   primaryButtonText: {
     fontFamily: 'Author-Variable',
-    fontWeight: '700',
+     fontWeight: '700',
     fontSize: 16,
     color: '#2F4F3E',
   },
@@ -216,7 +181,7 @@ const styles = StyleSheet.create({
   },
   secondaryButtonText: {
     fontFamily: 'Author-Variable',
-    fontWeight: '700',
+     fontWeight: '700',
     fontSize: 16,
     color: '#2F4F3E',
   },

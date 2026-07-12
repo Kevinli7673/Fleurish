@@ -1,23 +1,28 @@
-import React, { useEffect, useState } from 'react';
-import { Animated, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ImageBackground, Animated, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFonts } from 'expo-font';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-export default function AuthLandingScreen() {
+export default function Index() {
   const router = useRouter();
+
   const [fontsLoaded] = useFonts({
     Mootjungle: require('@/assets/fonts/Mootjungle.ttf'),
     'Author-Variable': require('@/assets/fonts/Author-Variable.ttf'),
   });
+
   const [screen, setScreen] = useState<'landing' | 'auth'>('landing');
 
-  const [landingContentFade] = useState(() => new Animated.Value(0));
-  const [landingScale] = useState(() => new Animated.Value(0.92));
-  const [landingBgFade] = useState(() => new Animated.Value(1));
-  const [authBgFade] = useState(() => new Animated.Value(0));
-  const [authContentFade] = useState(() => new Animated.Value(0));
+ 
+  const landingContentFade = useRef(new Animated.Value(0)).current;
+  const landingScale = useRef(new Animated.Value(0.92)).current;
+
+  const landingBgFade = useRef(new Animated.Value(1)).current;
+  const authBgFade = useRef(new Animated.Value(0)).current;
+
+  const authContentFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!fontsLoaded) return;
@@ -63,7 +68,7 @@ export default function AuthLandingScreen() {
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [authBgFade, authContentFade, fontsLoaded, landingBgFade, landingContentFade, landingScale]);
+  }, [fontsLoaded]);
 
   if (!fontsLoaded) {
     return <View style={styles.loadingContainer} />;
@@ -71,6 +76,7 @@ export default function AuthLandingScreen() {
 
   return (
     <View style={styles.background}>
+      {/* Landing background */}
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: landingBgFade }]}>
         <ImageBackground
           source={require('@/assets/images/Background.png')}
@@ -79,6 +85,7 @@ export default function AuthLandingScreen() {
         />
       </Animated.View>
 
+      {/* Choice background */}
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: authBgFade }]}>
         <ImageBackground
           source={require('@/assets/images/Choice.png')}
@@ -87,6 +94,7 @@ export default function AuthLandingScreen() {
         />
       </Animated.View>
 
+      {/* Shared gradient, always on top of both backgrounds, never changes */}
       <LinearGradient
         colors={['#FCEDEB', '#F7F1E6', '#F6FDF3']}
         locations={[0, 0.5, 1]}
@@ -94,25 +102,37 @@ export default function AuthLandingScreen() {
         pointerEvents="none"
       />
 
+      {/* Landing content */}
       <Animated.View
         pointerEvents={screen === 'landing' ? 'auto' : 'none'}
         style={[
           styles.centerWrap,
           StyleSheet.absoluteFill,
-          { opacity: landingContentFade, transform: [{ scale: landingScale }] },
-        ]}>
+          {
+            opacity: landingContentFade,
+            transform: [{ scale: landingScale }],
+          },
+        ]}
+      >
         <Text style={styles.title}>Fleurish</Text>
         <Text style={styles.tagline}>Rooted in discovery!</Text>
       </Animated.View>
 
+      {/* New/Existing user choice */}
       <Animated.View
         pointerEvents={screen === 'auth' ? 'auto' : 'none'}
-        style={[styles.centerWrap, StyleSheet.absoluteFill, { opacity: authContentFade }]}>
+        style={[
+          styles.centerWrap,
+          StyleSheet.absoluteFill,
+          { opacity: authContentFade },
+        ]}
+      >
         <View style={styles.choiceRow}>
           <View style={styles.choiceItem}>
             <Pressable
               style={[styles.circleButton, { backgroundColor: '#E8637A' }]}
-              onPress={() => router.push('/signup')}>
+              onPress={() => router.push('/signup')}
+            >
               <MaterialCommunityIcons name="sprout" size={36} color="#FFF" />
             </Pressable>
             <Text style={styles.choiceLabel}>New User?</Text>
@@ -123,7 +143,8 @@ export default function AuthLandingScreen() {
           <View style={styles.choiceItem}>
             <Pressable
               style={[styles.circleButton, { backgroundColor: '#2F4F3E' }]}
-              onPress={() => router.push('/login')}>
+              onPress={() => router.push('/login')}
+            >
               <MaterialCommunityIcons name="pine-tree" size={36} color="#FFF" />
             </Pressable>
             <Text style={styles.choiceLabel}>Existing User?</Text>
@@ -199,8 +220,9 @@ const styles = StyleSheet.create({
   },
   orText: {
     fontFamily: 'Author-Variable',
+    fontSize: 24,
     fontWeight: '700',
     color: '#2F4F3E',
-    marginTop: 10,
+    marginHorizontal: 8,
   },
 });
