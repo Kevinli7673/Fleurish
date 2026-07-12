@@ -37,6 +37,7 @@ export default function LogPlant() {
   const [locating, setLocating] = useState(false);
   const [note, setNote] = useState('');
   const [notifyFriends, setNotifyFriends] = useState(false);
+  const [runDoctor, setRunDoctor] = useState(true);
   const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -153,7 +154,21 @@ export default function LogPlant() {
       }
 
       console.log('Sighting successfully saved!');
-      router.replace('/(tabs)');
+      if (runDoctor) {
+        router.replace({
+          pathname: '/plantdoctor',
+          params: {
+            photoUri: params.photoUri,
+            plantName: plantName,
+            location: location || 'Nearby',
+            date: date ? date.toLocaleDateString() : new Date().toLocaleDateString(),
+            note: note || '',
+            autoTrigger: 'true',
+          },
+        });
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (err: any) {
       Alert.alert('Save failed', err.message || 'An error occurred while saving.');
     } finally {
@@ -257,6 +272,17 @@ export default function LogPlant() {
               onValueChange={setNotifyFriends}
               trackColor={{ false: '#D6D6D6', true: '#7FB3D9' }}
               thumbColor="#2D9CDB"
+            />
+          </View>
+
+          {/* Consult Plant Doctor toggle */}
+          <View style={[styles.card, styles.notifyCard, { marginTop: -4 }]}>
+            <Text style={styles.label}>Consult AI Plant Doctor on Save?</Text>
+            <Switch
+              value={runDoctor}
+              onValueChange={setRunDoctor}
+              trackColor={{ false: '#D6D6D6', true: '#7C9A78' }}
+              thumbColor="#4C6355"
             />
           </View>
 
