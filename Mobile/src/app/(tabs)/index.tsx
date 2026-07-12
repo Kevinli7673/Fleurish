@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
+import { toggleLike, toggleBookmark, getFindUserStatus } from '@/lib/finds';
 
 const COLORS = {
   text: '#1B391C',
@@ -62,6 +63,7 @@ export default function Feed() {
   const [nearbyFinds, setNearbyFinds] = useState<any[]>([]);
   const [friendUpdate, setFriendUpdate] = useState<any | null>(null);
   const [bookmarked, setBookmarked] = useState(false);
+  const [liked, setLiked] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -92,6 +94,7 @@ export default function Feed() {
             if (rawData.length > 0) {
               const highlight = rawData[0];
               setFriendUpdate({
+                id: highlight.id,
                 name: highlight.plants?.common_name ?? 'Unknown Plant',
                 location: highlight.city || 'Nearby',
                 note: highlight.caption || 'Logged a new plant sighting!',
@@ -99,6 +102,13 @@ export default function Feed() {
                 match: highlight.confidence ? `${Math.round(Number(highlight.confidence) * 100)}% match` : 'AI match',
                 image: highlight.photo_url ? { uri: highlight.photo_url } : require('@/assets/images/monstera.jpg'),
               });
+
+              // Check if user has liked or bookmarked this sighting
+              const status = await getFindUserStatus(highlight.id);
+              if (active) {
+                setBookmarked(status.bookmarked);
+                setLiked(status.liked);
+              }
             }
           }
         } catch (e) {
@@ -114,6 +124,26 @@ export default function Feed() {
 
   const displayedNearby = nearbyFinds.length > 0 ? nearbyFinds : NEARBY_BLOOMS;
   const displayedFriendUpdate = friendUpdate || FRIEND_UPDATE;
+
+  const handleToggleLike = async () => {
+    if (!displayedFriendUpdate?.id) return;
+    try {
+      const isLiked = await toggleLike(displayedFriendUpdate.id);
+      setLiked(isLiked);
+    } catch (e) {
+      console.error('Failed to toggle like:', e);
+    }
+  };
+
+  const handleToggleBookmark = async () => {
+    if (!displayedFriendUpdate?.id) return;
+    try {
+      const isBookmarked = await toggleBookmark(displayedFriendUpdate.id);
+      setBookmarked(isBookmarked);
+    } catch (e) {
+      console.error('Failed to toggle bookmark:', e);
+    }
+  };
 
   return (
     <ImageBackground
@@ -237,13 +267,22 @@ export default function Feed() {
               <View style={styles.matchPill}>
                 <Text style={styles.matchPillText}>{displayedFriendUpdate.match}</Text>
               </View>
-              <Pressable hitSlop={8} onPress={() => setBookmarked(prev => !prev)}>
-                <MaterialCommunityIcons
-                  name={bookmarked ? "bookmark" : "bookmark-outline"}
-                  size={20}
-                  color={bookmarked ? COLORS.pink : COLORS.text}
-                />
-              </Pressable>
+              <View style={{ flexDirection: 'row', gap: 14 }}>
+                <Pressable hitSlop={8} onPress={handleToggleLike}>
+                  <MaterialCommunityIcons
+                    name={liked ? "heart" : "heart-outline"}
+                    size={20}
+                    color={liked ? COLORS.pink : COLORS.text}
+                  />
+                </Pressable>
+                <Pressable hitSlop={8} onPress={handleToggleBookmark}>
+                  <MaterialCommunityIcons
+                    name={bookmarked ? "bookmark" : "bookmark-outline"}
+                    size={20}
+                    color={bookmarked ? COLORS.pink : COLORS.text}
+                  />
+                </Pressable>
+              </View>
             </View>
           </View>
         </View>

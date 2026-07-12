@@ -84,6 +84,8 @@ export default function PlantResult() {
   const router = useRouter();
   const params = useLocalSearchParams<{ photoUri?: string; result?: string }>();
   const [spotters, setSpotters] = useState<any[]>([]);
+  const [liked, setLiked] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
 
   // Parse dynamic result from identify-plant Edge Function
   let apiPlant = null;
@@ -169,11 +171,19 @@ export default function PlantResult() {
             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </Pressable>
           <View style={styles.photoTopRight}>
-            <Pressable style={styles.circleButton}>
-              <MaterialCommunityIcons name="bookmark-outline" size={18} color="#FFFFFF" />
+            <Pressable style={styles.circleButton} onPress={() => setBookmarked(prev => !prev)}>
+              <MaterialCommunityIcons
+                name={bookmarked ? "bookmark" : "bookmark-outline"}
+                size={18}
+                color={bookmarked ? "#D9637A" : "#FFFFFF"}
+              />
             </Pressable>
-            <Pressable style={styles.circleButton}>
-              <MaterialCommunityIcons name="heart-outline" size={18} color="#FFFFFF" />
+            <Pressable style={styles.circleButton} onPress={() => setLiked(prev => !prev)}>
+              <MaterialCommunityIcons
+                name={liked ? "heart" : "heart-outline"}
+                size={18}
+                color={liked ? "#D9637A" : "#FFFFFF"}
+              />
             </Pressable>
           </View>
         </View>
@@ -239,6 +249,8 @@ export default function PlantResult() {
                     photoUri: params.photoUri,
                     plantName: plantData.commonName,
                     plantId: plantData.plantId,
+                    liked: liked ? 'true' : 'false',
+                    bookmarked: bookmarked ? 'true' : 'false',
                   },
                 })
               }
