@@ -83,7 +83,7 @@ export default function Notifications() {
             </ThemedText>
           </View>
 
-          {isFriendRequest ? (
+          {item.kind === 'friend_request' ? (
             <View style={{ gap: Spacing.two }}>
               <ThemedText type="small" style={{ color: theme.textSecondary }}>
                 sent you a friend request.
@@ -110,6 +110,19 @@ export default function Notifications() {
                   <Text style={[styles.btnText, { color: theme.text }]}>Decline</Text>
                 </Pressable>
               </View>
+            </View>
+          ) : item.kind === 'plant_spotted' ? (
+            <View style={styles.likeRow}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, flex: 1 }}>
+                spotted a{' '}
+                <ThemedText type="smallBold" style={{ color: theme.text }}>
+                  {item.find.plantName || 'Unknown plant'}
+                </ThemedText>{' '}
+                nearby!
+              </ThemedText>
+              {item.find.photo_url && (
+                <Image source={{ uri: item.find.photo_url }} style={styles.miniFindImage} />
+              )}
             </View>
           ) : (
             <View style={styles.likeRow}>

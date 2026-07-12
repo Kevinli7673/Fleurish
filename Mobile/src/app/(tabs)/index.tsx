@@ -61,6 +61,7 @@ export default function Feed() {
   const router = useRouter();
   const [nearbyFinds, setNearbyFinds] = useState<any[]>([]);
   const [friendUpdate, setFriendUpdate] = useState<any | null>(null);
+  const [bookmarked, setBookmarked] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -83,6 +84,7 @@ export default function Feed() {
               name: f.plants?.common_name ?? 'Unknown Plant',
               distance: f.city || 'Nearby',
               image: f.photo_url ? { uri: f.photo_url } : require('@/assets/images/monstera.jpg'),
+              avatarUrl: f.profiles?.avatar_url || null,
             }));
             setNearbyFinds(mappedNearby);
 
@@ -191,7 +193,11 @@ export default function Feed() {
             <Pressable key={plant.id} style={styles.nearbyCard}>
               <View style={styles.nearbyImageWrap}>
                 <Image source={plant.image} style={styles.nearbyImage} resizeMode="cover" />
-                <View style={styles.nearbyBadge} />
+                {plant.avatarUrl ? (
+                  <Image source={{ uri: plant.avatarUrl }} style={styles.nearbyBadgeImage} />
+                ) : (
+                  <View style={styles.nearbyBadgePlaceholder} />
+                )}
               </View>
               <Text style={styles.nearbyName}>{plant.name}</Text>
               <View style={styles.nearbyLocationRow}>
@@ -231,11 +237,11 @@ export default function Feed() {
               <View style={styles.matchPill}>
                 <Text style={styles.matchPillText}>{displayedFriendUpdate.match}</Text>
               </View>
-              <Pressable hitSlop={8}>
+              <Pressable hitSlop={8} onPress={() => setBookmarked(prev => !prev)}>
                 <MaterialCommunityIcons
-                  name="bookmark-outline"
+                  name={bookmarked ? "bookmark" : "bookmark-outline"}
                   size={20}
-                  color={COLORS.text}
+                  color={bookmarked ? COLORS.pink : COLORS.text}
                 />
               </Pressable>
             </View>
@@ -348,14 +354,24 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  nearbyBadge: {
+  nearbyBadgeImage: {
     position: 'absolute',
     bottom: 8,
     left: 8,
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  nearbyBadgePlaceholder: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#7C9A78',
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
