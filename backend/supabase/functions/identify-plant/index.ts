@@ -29,9 +29,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Call Plant.id API v3
+    // Call Plant.id API v3 with query parameters for taxonomy and common names
     console.log("Calling Plant.id identification endpoint...");
-    const plantIdRes = await fetch("https://api.plant.id/v3/identification", {
+    const plantIdRes = await fetch("https://api.plant.id/v3/identification?details=common_names,taxonomy", {
       method: "POST",
       headers: {
         "Api-Key": apiKey,
@@ -40,7 +40,6 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         images: [image],
         similar_images: true,
-        details: ["common_names", "taxonomy"],
       }),
     });
 
