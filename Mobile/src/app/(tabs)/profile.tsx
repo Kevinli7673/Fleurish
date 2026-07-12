@@ -308,10 +308,10 @@ const styles = StyleSheet.create({
   },
   profileBannerImage: {
     position: 'absolute',
-    top: -60,
-    bottom: -60,
-    left: -60,
-    right: -60,
+    width: '180%',
+    height: '180%',
+    top: '-40%',
+    left: '-40%',
     resizeMode: 'cover',
   },
   avatar: {
