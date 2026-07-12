@@ -40,6 +40,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         images: [image],
         similar_images: true,
+        details: ["common_names", "taxonomy"],
       }),
     });
 
@@ -65,8 +66,10 @@ Deno.serve(async (req) => {
     // Get the top suggestion
     const bestSuggestion = suggestions[0];
     const scientificName = bestSuggestion.name;
-    const commonName = bestSuggestion.details?.common_names?.[0] || bestSuggestion.name;
+    const commonNamesList = bestSuggestion.details?.common_names || [];
+    const commonName = commonNamesList[0] || bestSuggestion.name;
     const confidence = bestSuggestion.probability;
+    const family = bestSuggestion.details?.taxonomy?.family || "Botanical Species";
 
     // Initialize Supabase Client with service role key to insert/query reference table
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -110,12 +113,13 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         plant_id: plant.id,
-        common_name: plant.common_name,
+        common_name: (plant.common_name.toLowerCase() === plant.scientific_name.toLowerCase() && commonName) ? commonName : plant.common_name,
         scientific_name: plant.scientific_name,
         confidence: Number(confidence.toFixed(2)),
         care_tips: plant.care_tips,
         light_requirement: plant.light_requirement,
-        water_requirement: plant.water_requirement
+        water_requirement: plant.water_requirement,
+        family: family
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
