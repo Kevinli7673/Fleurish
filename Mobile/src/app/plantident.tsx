@@ -258,6 +258,32 @@ export default function PlantResult() {
             <Text style={styles.aboutFamily}>Family: {plantData.family}</Text>
           </View>
 
+          {/* Plant Doctor Card */}
+          <View style={styles.doctorCard}>
+            <View style={styles.aboutHeaderRow}>
+              <MaterialCommunityIcons name="doctor" size={18} color="#1B391C" />
+              <Text style={[styles.aboutHeader, { color: '#1B391C', fontWeight: 'bold' }]}>AI Plant Doctor</Text>
+            </View>
+            <Text style={styles.doctorText}>
+              Need health advice, diagnosing issues, or specific watering care for your {plantData.commonName}? Chat with our virtual doctor!
+            </Text>
+            <Pressable
+              style={styles.doctorButton}
+              onPress={() =>
+                router.push({
+                  pathname: '/plantdoctor',
+                  params: {
+                    photoUri: params.photoUri,
+                    plantName: plantData.commonName,
+                  },
+                })
+              }
+            >
+              <Text style={styles.doctorButtonText}>Consult Plant Doctor</Text>
+              <MaterialCommunityIcons name="chat-processing-outline" size={18} color="#FFFFFF" />
+            </Pressable>
+          </View>
+
           {/* Spotted by other users */}
           <Text style={styles.spottedHeader}>SPOTTED BY OTHER USERS</Text>
           <View style={styles.spottedRow}>
@@ -429,6 +455,37 @@ const styles = StyleSheet.create({
     fontFamily: 'Author-Variable',
     fontSize: 12,
     color: '#D9637A',
+  },
+
+  doctorCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  doctorText: {
+    fontFamily: 'Author-Variable',
+    fontSize: 13.5,
+    color: '#1C3127',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  doctorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#7C9A78',
+    borderRadius: 26,
+    height: 48,
+    gap: 8,
+  },
+  doctorButtonText: {
+    fontFamily: 'Author-Variable',
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 
   spottedHeader: {
