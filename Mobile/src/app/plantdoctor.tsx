@@ -26,7 +26,14 @@ type Message = {
 
 export default function PlantDoctor() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ photoUri?: string; plantName?: string }>();
+  const params = useLocalSearchParams<{
+    photoUri?: string;
+    plantName?: string;
+    location?: string;
+    date?: string;
+    note?: string;
+    autoTrigger?: string;
+  }>();
   const plantName = params.plantName ?? 'your plant';
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -34,17 +41,61 @@ export default function PlantDoctor() {
   const [isTyping, setIsTyping] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  // Initialize with greeting message
+  // Initialize with greeting message or auto-diagnostic flow
   useEffect(() => {
-    setMessages([
-      {
-        id: 'welcome',
-        text: `Hello! I am your AI Plant Doctor. 🌿\n\nI've examined the photo of your ${plantName}. What issues are you experiencing with it? (e.g. brown leaf tips, yellowing, watering queries, or general care advice?)`,
-        sender: 'doctor',
+    const isAuto = params.autoTrigger === 'true';
+    const initDate = params.date || new Date().toLocaleDateString();
+    const initLoc = params.location || 'Nearby';
+    const initNote = params.note || '';
+
+    const welcomeMsg: Message = {
+      id: 'welcome',
+      text: `Hello! I am your AI Plant Doctor. 🌿\n\nI see you've successfully logged your ${plantName} in your Garden! I am reviewing your log data to diagnose its health.`,
+      sender: 'doctor',
+      timestamp: new Date(),
+    };
+
+    if (isAuto) {
+      const userMsgText = `📋 *Log Details*:\n• Date: ${initDate}\n• Location: ${initLoc}\n• Notes: "${initNote || 'None'}"\n\nDoctor, please analyze my plant's health.`;
+      
+      const userMsg: Message = {
+        id: 'auto-user',
+        text: userMsgText,
+        sender: 'user',
         timestamp: new Date(),
-      },
-    ]);
-  }, [plantName]);
+      };
+
+      setMessages([welcomeMsg, userMsg]);
+      setIsTyping(true);
+
+      const delay = setTimeout(() => {
+        const diagnosticText = generateDoctorResponse(initNote || 'general care');
+        const finalDiagnosis = `🩺 *Health Diagnosis & Recommendations*:\n\n${diagnosticText}`;
+        
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: 'auto-diagnosis',
+            text: finalDiagnosis,
+            sender: 'doctor',
+            timestamp: new Date(),
+          },
+        ]);
+        setIsTyping(false);
+      }, 1500);
+
+      return () => clearTimeout(delay);
+    } else {
+      setMessages([
+        {
+          id: 'welcome',
+          text: `Hello! I am your AI Plant Doctor. 🌿\n\nI've examined the photo of your ${plantName}. What issues are you experiencing with it? (e.g. brown leaf tips, yellowing, watering queries, or general care advice?)`,
+          sender: 'doctor',
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  }, [plantName, params.autoTrigger]);
 
   const generateDoctorResponse = (userText: string): string => {
     const text = userText.toLowerCase();
