@@ -138,11 +138,12 @@ export default function Profile() {
         </View>
 
         {/* Profile card */}
-        <ImageBackground
-          source={require('@/assets/images/FlowerMonet.png')}
-          style={styles.profileBanner}
-          imageStyle={[styles.profileBannerImage, { opacity: 0.4 }]}
-        >
+        <View style={styles.profileBanner}>
+          <Image
+            source={require('@/assets/images/FlowerMonet.png')}
+            style={[styles.profileBannerImage, { opacity: 0.4 }]}
+            resizeMode="cover"
+          />
           {profileContext.photoUri ? (
             <Image source={{ uri: profileContext.photoUri }} style={styles.avatarImage} />
           ) : (
@@ -157,7 +158,7 @@ export default function Profile() {
           >
             <Text style={styles.editProfileButtonText}>Edit Profile</Text>
           </Pressable>
-        </ImageBackground>
+        </View>
 
         {/* Stats banner */}
         <LinearGradient
@@ -302,10 +303,15 @@ const styles = StyleSheet.create({
     paddingTop: 30,
     paddingBottom: 24,
     paddingHorizontal: 24,
+    borderRadius: 20,
+    position: 'relative',
   },
   profileBannerImage: {
-    width: '100%',
-    height: '100%',
+    position: 'absolute',
+    width: '180%',
+    height: '180%',
+    top: '-40%',
+    left: '-40%',
     resizeMode: 'cover',
   },
   avatar: {
