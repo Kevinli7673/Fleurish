@@ -59,6 +59,27 @@ function getFamilyFromScientificName(scientificName?: string): string {
   return map[genus] || `${genus} Family`;
 }
 
+function cleanCommonName(commonName: string, scientificName: string): string {
+  if (commonName.toLowerCase() === scientificName.toLowerCase()) {
+    const genus = scientificName.split(' ')[0].trim().toLowerCase();
+    const map: Record<string, string> = {
+      helianthus: 'Sunflower',
+      dahlia: 'Dahlia',
+      monstera: 'Swiss Cheese Plant',
+      panaeolus: 'Mushroom',
+      lavandula: 'Lavender',
+      jasminum: 'Jasmine',
+      rosa: 'Rose',
+      ficus: 'Ficus',
+      spathiphyllum: 'Peace Lily',
+      salvia: 'Sage',
+      acer: 'Maple',
+    };
+    return map[genus] || genus.charAt(0).toUpperCase() + genus.slice(1);
+  }
+  return commonName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 export default function PlantResult() {
   const router = useRouter();
   const params = useLocalSearchParams<{ photoUri?: string; result?: string }>();
@@ -75,10 +96,13 @@ export default function PlantResult() {
   }
 
   // Fallback to mock data if no api result (e.g. previewing)
+  const rawCommon = apiPlant?.common_name ?? PLANT.commonName;
+  const rawScientific = apiPlant?.scientific_name ?? PLANT.scientificName;
+
   const plantData = {
-    commonName: apiPlant?.common_name ?? PLANT.commonName,
-    scientificName: apiPlant?.scientific_name ?? PLANT.scientificName,
-    altName: apiPlant?.scientific_name ?? PLANT.altName,
+    scientificName: rawScientific,
+    commonName: cleanCommonName(rawCommon, rawScientific),
+    altName: rawScientific,
     match: apiPlant ? `${Math.round(apiPlant.confidence * 100)}% MATCH` : PLANT.match,
     tags: apiPlant ? [
       { label: 'Species Match', color: '#E8637A' },
@@ -89,7 +113,7 @@ export default function PlantResult() {
       { icon: 'weather-windy', label: 'Humid', color: '#C8D8C2' },
     ] : PLANT.care,
     description: apiPlant?.care_tips ?? PLANT.description,
-    family: apiPlant ? getFamilyFromScientificName(apiPlant.scientific_name) : PLANT.family,
+    family: apiPlant?.family || (apiPlant ? getFamilyFromScientificName(apiPlant.scientific_name) : PLANT.family),
     plantId: apiPlant?.plant_id ?? null,
   };
 

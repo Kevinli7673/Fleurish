@@ -173,45 +173,39 @@ export default function LogPlant() {
   }
 
   return (
-    <View style={styles.screen}>
-      {/* Photo header */}
-      <View style={styles.photoHeader}>
-        <Image source={photoSource} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        <LinearGradient
-          colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.6)']}
-          style={StyleSheet.absoluteFill}
-        />
+    <ImageBackground
+      source={photoSource}
+      style={styles.screen}
+      imageStyle={styles.backgroundImage}
+    >
+      <LinearGradient
+        colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.65)']}
+        style={StyleSheet.absoluteFill}
+      />
 
-        <View style={styles.photoTopRow}>
-          <Pressable style={styles.circleButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+      <View style={styles.photoTopRow}>
+        <Pressable style={styles.circleButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+        </Pressable>
+        <View style={styles.photoTopRight}>
+          <Pressable style={styles.circleButton}>
+            <MaterialCommunityIcons name="bookmark-outline" size={18} color="#FFFFFF" />
           </Pressable>
-          <View style={styles.photoTopRight}>
-            <Pressable style={styles.circleButton}>
-              <MaterialCommunityIcons name="bookmark-outline" size={18} color="#FFFFFF" />
-            </Pressable>
-            <Pressable style={styles.circleButton}>
-              <MaterialCommunityIcons name="heart-outline" size={18} color="#FFFFFF" />
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.photoBottom}>
-          <Text style={styles.photoTitle}>Log Your Plant</Text>
-          <Text style={styles.photoSubtitle}>{plantName} (will change depending on plant logged)</Text>
+          <Pressable style={styles.circleButton}>
+            <MaterialCommunityIcons name="heart-outline" size={18} color="#FFFFFF" />
+          </Pressable>
         </View>
       </View>
 
-      <ImageBackground
-        source={require('@/assets/images/plantlogsunset.png')}
-        style={styles.contentBackground}
-        resizeMode="cover"
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+        <View style={styles.photoBottom}>
+          <Text style={styles.photoTitle}>Log Your Plant</Text>
+          <Text style={styles.photoSubtitle}>{plantName}</Text>
+        </View>
           {/* Date + location card */}
           <View style={styles.card}>
             <Text style={styles.label}>Select date</Text>
@@ -272,9 +266,8 @@ export default function LogPlant() {
           </Pressable>
 
           <View style={{ height: 40 }} />
-        </ScrollView>
-      </ImageBackground>
-    </View>
+      </ScrollView>
+    </ImageBackground>
   );
 }
 
@@ -282,15 +275,17 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   screen: { flex: 1, backgroundColor: '#000' },
 
-  photoHeader: {
-    height: 260,
-    justifyContent: 'space-between',
+  backgroundImage: {
+    width: '100%',
+    height: '100%',
+    position: 'absolute',
   },
   photoTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: '10%',
+    paddingTop: '12%',
+    paddingBottom: 10,
   },
   photoTopRight: {
     flexDirection: 'row',
@@ -305,8 +300,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   photoBottom: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 16,
   },
   photoTitle: {
     fontFamily: 'PlayfairDisplay_700Bold',
@@ -319,13 +313,9 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     marginTop: 2,
   },
-
-  contentBackground: {
-    flex: 1,
-  },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 10,
   },
 
   card: {
