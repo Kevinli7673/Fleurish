@@ -258,32 +258,6 @@ export default function PlantResult() {
             <Text style={styles.aboutFamily}>Family: {plantData.family}</Text>
           </View>
 
-          {/* Plant Doctor Card */}
-          <View style={styles.doctorCard}>
-            <View style={styles.aboutHeaderRow}>
-              <MaterialCommunityIcons name="doctor" size={18} color="#1B391C" />
-              <Text style={[styles.aboutHeader, { color: '#1B391C', fontWeight: 'bold' }]}>AI Plant Doctor</Text>
-            </View>
-            <Text style={styles.doctorText}>
-              Need health advice, diagnosing issues, or specific watering care for your {plantData.commonName}? Chat with our virtual doctor!
-            </Text>
-            <Pressable
-              style={styles.doctorButton}
-              onPress={() =>
-                router.push({
-                  pathname: '/plantdoctor',
-                  params: {
-                    photoUri: params.photoUri,
-                    plantName: plantData.commonName,
-                  },
-                })
-              }
-            >
-              <Text style={styles.doctorButtonText}>Consult Plant Doctor</Text>
-              <MaterialCommunityIcons name="chat-processing-outline" size={18} color="#FFFFFF" />
-            </Pressable>
-          </View>
-
           {/* Spotted by other users */}
           <Text style={styles.spottedHeader}>SPOTTED BY OTHER USERS</Text>
           <View style={styles.spottedRow}>
