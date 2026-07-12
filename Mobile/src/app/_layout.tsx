@@ -1,18 +1,43 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { useEffect } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { ProfileProvider } from '@/context/profilecontext';
+import { useSession } from '@/hooks/use-session';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+export default function RootLayout() {
+  const { session, isLoading } = useSession();
+  const router = useRouter();
+  const segments = useSegments();
 
-SplashScreen.preventAutoHideAsync();
+  useEffect(() => {
+    if (isLoading) return;
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+    const segs = segments as string[];
+    const currentRoute = segs[0] || 'index';
+    const isAuthScreen = ['login', 'signup', 'verify', 'forgpassword'].includes(currentRoute) || 
+                         (segs.length === 1 && currentRoute === 'index') || 
+                         segs.length === 0;
+
+    if (session && isAuthScreen) {
+      // Redirect to tabs if logged in and trying to access auth screens
+      router.replace('/(tabs)');
+    } else if (!session && !isAuthScreen) {
+      // Redirect to landing if not logged in and trying to access app screens
+      router.replace('/');
+    }
+  }, [session, isLoading, segments]);
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FCEDEB' }}>
+        <ActivityIndicator size="large" color="#1B391C" />
+      </View>
+    );
+  }
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <ProfileProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </ProfileProvider>
   );
 }
