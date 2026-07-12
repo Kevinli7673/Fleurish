@@ -183,3 +183,107 @@ export async function getMyStreak(): Promise<Streak> {
   if (error) throw new Error('Could not load your streak.');
   return { current: data?.current_streak ?? 0, longest: data?.longest_streak ?? 0 };
 }
+
+/** Toggle a like on a plant sighting finding. */
+export async function toggleLike(findId: string): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not logged in');
+
+  const { data: existing } = await supabase
+    .from('likes')
+    .select('created_at')
+    .eq('user_id', user.id)
+    .eq('find_id', findId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from('likes')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('find_id', findId);
+    if (error) throw error;
+    return false; // unliked
+  } else {
+    const { error } = await supabase
+      .from('likes')
+      .insert({ user_id: user.id, find_id: findId });
+    if (error) throw error;
+    return true; // liked
+  }
+}
+
+/** Toggle a bookmark on a plant sighting finding into the "Want to Have" list. */
+export async function toggleBookmark(findId: string): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not logged in');
+
+  // 1. Get or create the 'Want to Have' list for the user
+  let { data: list } = await supabase
+    .from('lists')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('name', 'Want to Have')
+    .maybeSingle();
+
+  if (!list) {
+    const { data: newList, error: createError } = await supabase
+      .from('lists')
+      .insert({ user_id: user.id, name: 'Want to Have', icon: 'bookmark' })
+      .select('id')
+      .single();
+    if (createError) throw createError;
+    list = newList;
+  }
+
+  // 2. Check if item is already in list_items
+  const { data: existingItem } = await supabase
+    .from('list_items')
+    .select('list_id')
+    .eq('list_id', list.id)
+    .eq('find_id', findId)
+    .maybeSingle();
+
+  if (existingItem) {
+    const { error } = await supabase
+      .from('list_items')
+      .delete()
+      .eq('list_id', list.id)
+      .eq('find_id', findId);
+    if (error) throw error;
+    return false; // unbookmarked
+  } else {
+    const { error } = await supabase
+      .from('list_items')
+      .insert({ list_id: list.id, find_id: findId });
+    if (error) throw error;
+    return true; // bookmarked
+  }
+}
+
+/** Check if a finding is liked and/or bookmarked by the current user. */
+export async function getFindUserStatus(findId: string): Promise<{ liked: boolean; bookmarked: boolean }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { liked: false, bookmarked: false };
+
+  const [likeRes, bookmarkRes] = await Promise.all([
+    supabase
+      .from('likes')
+      .select('created_at')
+      .eq('user_id', user.id)
+      .eq('find_id', findId)
+      .maybeSingle(),
+    supabase
+      .from('list_items')
+      .select('find_id, lists!inner(user_id, name)')
+      .eq('find_id', findId)
+      .eq('lists.user_id', user.id)
+      .eq('lists.name', 'Want to Have')
+      .maybeSingle()
+  ]);
+
+  return {
+    liked: !!likeRes.data,
+    bookmarked: !!bookmarkRes.data,
+  };
+}

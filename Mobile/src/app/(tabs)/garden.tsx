@@ -149,24 +149,20 @@ export default function Garden() {
               setFavorites(mappedFavs);
             }
 
-            // Load "Want to Find" (reference plants the user has not logged yet)
-            const loggedPlantIds = data
-              .map((f) => f.plant_id)
-              .filter(Boolean);
-
-            let plantsQuery = supabase.from('plants').select('id, common_name').limit(10);
-            if (loggedPlantIds.length > 0) {
-              plantsQuery = plantsQuery.not('id', 'in', `(${loggedPlantIds.map(id => `'${id}'`).join(',')})`);
-            }
-
-            const { data: plantsData, error: plantsError } = await plantsQuery;
-            if (active && plantsData && !plantsError) {
-              const mappedWantToFind = plantsData.map((plant: any) => ({
-                id: plant.id,
-                name: plant.common_name,
-                image: require('@/assets/images/starjasmine.jpg'),
+            // Load "Want to Have" (bookmarked sightings from the 'Want to Have' list)
+            const { data: listItemsData, error: listItemsError } = await supabase
+              .from('list_items')
+              .select('find_id, finds!inner(id, photo_url, plants(common_name)), lists!inner(user_id, name)')
+              .eq('lists.user_id', userId)
+              .eq('lists.name', 'Want to Have');
+            
+            if (active && listItemsData && !listItemsError) {
+              const mappedWantToHave = listItemsData.map((item: any) => ({
+                id: item.finds.id,
+                name: item.finds.plants?.common_name ?? 'Bookmarked Plant',
+                image: item.finds.photo_url ? { uri: item.finds.photo_url } : require('@/assets/images/monstera.jpg'),
               }));
-              setWantToFind(mappedWantToFind);
+              setWantToFind(mappedWantToHave);
             }
           }
         } catch (e) {
@@ -256,7 +252,7 @@ export default function Garden() {
     },
     {
       key: 'wantToFind',
-      title: 'Want to Find',
+      title: 'Want to Have',
       data: filteredWantToFind,
     },
   ];
