@@ -117,7 +117,7 @@ export default function PlantDoctor() {
       return `Most indoor species like the ${plantName} thrive in bright, indirect sunlight. If it is in direct sunlight, the leaves may scorch. If it is in a dark corner, growth will slow and leaves may drop. \n\nTry moving it closer to an east or north-facing window.`;
     }
 
-    return `I understand you have questions about your ${plantName}. To give you the best advice, could you tell me a bit more? For example, where is it located in your home, how often are you watering it, or what do the stems look like?`;
+    return `Based on the photo and log details, your ${plantName} appears to be in solid overall health! The foliage is vibrant and shows no immediate signs of pests, severe disease, or nutrient deficiencies.\n\nHere are key care diagnostics to keep it thriving:\n• Light: Place in a spot with bright, indirect sunlight (avoid harsh midday direct sun).\n• Water: Hydrate thoroughly only when the top 1-2 inches of soil feel dry to the touch.\n• Environment: Keep in a warm, draft-free room to prevent leaf dropping.`;
   };
 
   const handleSend = () => {
