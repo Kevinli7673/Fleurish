@@ -83,7 +83,7 @@ export default function Notifications() {
             </ThemedText>
           </View>
 
-          {isFriendRequest ? (
+          {item.kind === 'friend_request' ? (
             <View style={{ gap: Spacing.two }}>
               <ThemedText type="small" style={{ color: theme.textSecondary }}>
                 sent you a friend request.
@@ -110,6 +110,19 @@ export default function Notifications() {
                   <Text style={[styles.btnText, { color: theme.text }]}>Decline</Text>
                 </Pressable>
               </View>
+            </View>
+          ) : item.kind === 'plant_spotted' ? (
+            <View style={styles.likeRow}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, flex: 1 }}>
+                spotted a{' '}
+                <ThemedText type="smallBold" style={{ color: theme.text }}>
+                  {item.find.plantName || 'Unknown plant'}
+                </ThemedText>{' '}
+                nearby!
+              </ThemedText>
+              {item.find.photo_url && (
+                <Image source={{ uri: item.find.photo_url }} style={styles.miniFindImage} />
+              )}
             </View>
           ) : (
             <View style={styles.likeRow}>
@@ -160,7 +173,11 @@ export default function Notifications() {
       ) : (
         <FlatList
           data={notifications}
-          keyExtractor={(item) => `${item.kind}-${item.from.id}-${item.created_at}`}
+          keyExtractor={(item) => {
+            if (item.kind === 'friend_request') return `req-${item.from.id}`;
+            if (item.kind === 'like') return `like-${item.from.id}-${item.find.id}`;
+            return `spot-${item.find.id}`;
+          }}
           contentContainerStyle={styles.list}
           renderItem={renderNotificationItem}
           refreshing={refreshing}

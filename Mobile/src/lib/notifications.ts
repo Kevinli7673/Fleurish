@@ -14,7 +14,14 @@ export type LikeNotification = {
   find: { id: string; photo_url: string; plantName: string | null };
 };
 
-export type Notification = FriendRequestNotification | LikeNotification;
+export type PlantSpottedNotification = {
+  kind: 'plant_spotted';
+  created_at: string;
+  from: { id: string; username: string; avatar_url: string | null };
+  find: { id: string; photo_url: string; plantName: string | null };
+};
+
+export type Notification = FriendRequestNotification | LikeNotification | PlantSpottedNotification;
 
 async function getMyUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
@@ -23,13 +30,13 @@ async function getMyUserId(): Promise<string> {
 }
 
 /**
- * Derived notifications (no notifications table in the backend):
- * incoming pending friend requests + likes on the current user's finds.
+ * Derived notifications: incoming pending friend requests + likes on the current user's finds
+ * + any recent sightings logged by users in the database ("in your area").
  */
 export async function getNotifications(): Promise<Notification[]> {
   const myId = await getMyUserId();
 
-  const [requestsRes, likesRes] = await Promise.all([
+  const [requestsRes, likesRes, spotsRes] = await Promise.all([
     supabase
       .from('friendships')
       .select('created_at, requester:profiles!friendships_user_id_fkey(id, username, avatar_url)')
@@ -44,10 +51,16 @@ export async function getNotifications(): Promise<Notification[]> {
       .neq('user_id', myId)
       .order('created_at', { ascending: false })
       .limit(30),
+    supabase
+      .from('finds')
+      .select('id, created_at, photo_url, plants(common_name), profiles!finds_user_id_fkey(id, username, avatar_url)')
+      .order('created_at', { ascending: false })
+      .limit(30),
   ]);
 
   if (requestsRes.error) throw new Error('Could not load friend requests.');
   if (likesRes.error) throw new Error('Could not load likes.');
+  if (spotsRes.error) throw new Error('Could not load recent sightings.');
 
   const requests: Notification[] = ((requestsRes.data ?? []) as unknown as {
     created_at: string;
@@ -81,7 +94,24 @@ export async function getNotifications(): Promise<Notification[]> {
       },
     }));
 
-  return [...requests, ...likes].sort(
+  const spots: Notification[] = ((spotsRes.data ?? []) as any[])
+    .filter((row) => row.profiles)
+    .map((row) => ({
+      kind: 'plant_spotted',
+      created_at: row.created_at,
+      from: {
+        id: row.profiles.id,
+        username: row.profiles.username,
+        avatar_url: row.profiles.avatar_url,
+      },
+      find: {
+        id: row.id,
+        photo_url: row.photo_url,
+        plantName: row.plants?.common_name ?? 'Unknown Plant',
+      },
+    }));
+
+  return [...requests, ...likes, ...spots].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 }
