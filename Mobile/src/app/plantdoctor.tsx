@@ -187,7 +187,16 @@ export default function PlantDoctor() {
         <SafeAreaView style={styles.safeArea}>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <TouchableOpacity
+              onPress={() => {
+                if (params.autoTrigger === 'true') {
+                  router.replace('/(tabs)');
+                } else {
+                  router.back();
+                }
+              }}
+              style={styles.backButton}
+            >
               <Ionicons name="arrow-back" size={24} color="#1B391C" />
             </TouchableOpacity>
             <View style={styles.headerTitleWrap}>
