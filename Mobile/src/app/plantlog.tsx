@@ -24,7 +24,13 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function LogPlant() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ photoUri?: string; plantName?: string; plantId?: string }>();
+  const params = useLocalSearchParams<{
+    photoUri?: string;
+    plantName?: string;
+    plantId?: string;
+    liked?: string;
+    bookmarked?: string;
+  }>();
 
   const plantName = params.plantName ?? 'Monstera deliciosa';
   const photoSource = params.photoUri
@@ -135,7 +141,7 @@ export default function LogPlant() {
         .getPublicUrl(fileName);
 
       console.log('Creating database find record...');
-      const { error: createError } = await supabase.functions.invoke(
+      const { data, error: createError } = await supabase.functions.invoke(
         'create-find',
         {
           body: {
@@ -151,6 +157,43 @@ export default function LogPlant() {
 
       if (createError) {
         throw new Error(createError.message || 'Failed to create plant find record');
+      }
+
+      const createdFind = data as { find: { id: string } } | null;
+      const createdFindId = createdFind?.find?.id;
+
+      if (createdFindId) {
+        // Propagate Favorite (Like) status to database on save
+        if (params.liked === 'true') {
+          await supabase
+            .from('likes')
+            .insert({ user_id: userId, find_id: createdFindId });
+        }
+
+        // Propagate Bookmark (Want to Have) status to database on save
+        if (params.bookmarked === 'true') {
+          let { data: list } = await supabase
+            .from('lists')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('name', 'Want to Have')
+            .maybeSingle();
+
+          if (!list) {
+            const { data: newList } = await supabase
+              .from('lists')
+              .insert({ user_id: userId, name: 'Want to Have', icon: 'bookmark' })
+              .select('id')
+              .single();
+            list = newList;
+          }
+
+          if (list) {
+            await supabase
+              .from('list_items')
+              .insert({ list_id: list.id, find_id: createdFindId });
+          }
+        }
       }
 
       console.log('Sighting successfully saved!');
