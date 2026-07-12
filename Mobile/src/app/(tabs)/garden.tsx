@@ -128,8 +128,46 @@ export default function Garden() {
       async function loadFinds() {
         try {
           const data = await getMyFinds();
-          if (active) {
-            setMyFinds(data);
+          if (!active) return;
+          setMyFinds(data);
+
+          const sessionRes = await supabase.auth.getSession();
+          const userId = sessionRes.data.session?.user?.id;
+          if (userId && active) {
+            // Load Favorites from liked sightings
+            const { data: likesData, error: likesError } = await supabase
+              .from('likes')
+              .select('id, finds!inner(id, photo_url, plants(common_name))')
+              .eq('user_id', userId);
+            
+            if (active && likesData && !likesError) {
+              const mappedFavs = likesData.map((like: any) => ({
+                id: like.finds.id,
+                name: like.finds.plants?.common_name ?? 'Liked Sighting',
+                image: like.finds.photo_url ? { uri: like.finds.photo_url } : require('@/assets/images/monstera.jpg'),
+              }));
+              setFavorites(mappedFavs);
+            }
+
+            // Load "Want to Find" (reference plants the user has not logged yet)
+            const loggedPlantIds = data
+              .map((f) => f.plant_id)
+              .filter(Boolean);
+
+            let plantsQuery = supabase.from('plants').select('id, common_name').limit(10);
+            if (loggedPlantIds.length > 0) {
+              plantsQuery = plantsQuery.not('id', 'in', `(${loggedPlantIds.map(id => `'${id}'`).join(',')})`);
+            }
+
+            const { data: plantsData, error: plantsError } = await plantsQuery;
+            if (active && plantsData && !plantsError) {
+              const mappedWantToFind = plantsData.map((plant: any) => ({
+                id: plant.id,
+                name: plant.common_name,
+                image: require('@/assets/images/starjasmine.jpg'),
+              }));
+              setWantToFind(mappedWantToFind);
+            }
           }
         } catch (e) {
           console.error(e);
@@ -195,21 +233,31 @@ export default function Garden() {
     }
   };
 
+  const filteredCollection = dynamicCollection.filter(plant => 
+    plant.name.toLowerCase().includes(query.toLowerCase())
+  );
+  const filteredFavorites = favorites.filter(plant => 
+    plant.name.toLowerCase().includes(query.toLowerCase())
+  );
+  const filteredWantToFind = wantToFind.filter(plant => 
+    plant.name.toLowerCase().includes(query.toLowerCase())
+  );
+
   const sections: Section[] = [
     {
       key: 'myCollection',
       title: 'My Collection',
-      data: dynamicCollection,
+      data: filteredCollection,
     },
     {
       key: 'favorites',
       title: 'Favorites',
-      data: favorites,
+      data: filteredFavorites,
     },
     {
       key: 'wantToFind',
       title: 'Want to Find',
-      data: wantToFind,
+      data: filteredWantToFind,
     },
   ];
 
@@ -218,37 +266,6 @@ export default function Garden() {
   const sectionYPositions = useRef<Record<string, number>>({});
 
   const handleSearch = () => {
-    const q = query.trim().toLowerCase();
-    if (!q) return;
-
-    for (const section of sections) {
-      const index = section.data.findIndex((plant) =>
-        plant.name.toLowerCase().includes(q)
-      );
-      if (index !== -1) {
-        const plant = section.data[index];
-
-        // Scroll the page down to the section
-        const y = sectionYPositions.current[section.key] ?? 0;
-        mainScrollRef.current?.scrollTo({ y: Math.max(y - 16, 0), animated: true });
-
-        // Scroll that section's row to the matching card
-        sectionScrollRefs.current[section.key]?.scrollTo({
-          x: index * (CARD_WIDTH + CARD_GAP),
-          animated: true,
-        });
-
-        // Briefly highlight the matched card
-        const highlightKey = `${section.key}-${plant.id}`;
-        setHighlightedPlantId(highlightKey);
-        setTimeout(() => setHighlightedPlantId(null), 2000);
-
-        Keyboard.dismiss();
-        return;
-      }
-    }
-
-    // No match found
     Keyboard.dismiss();
   };
 
