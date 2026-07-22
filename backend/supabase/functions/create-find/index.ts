@@ -38,13 +38,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { photo_url, lat, lng, plant_id, caption, is_public } = await req.json();
+    const { photo_url, lat, lng, plant_id, caption, is_public, created_at } = await req.json();
 
     if (!photo_url) {
       return new Response(
         JSON.stringify({ error: "Missing photo_url parameter" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // The client may back-date a find to when the plant was actually spotted. Ignore
+    // unparseable and future dates so the date picker can't be used to fake a streak.
+    let foundAt: string | null = null;
+    if (created_at) {
+      const parsed = new Date(created_at);
+      if (!isNaN(parsed.getTime()) && parsed.getTime() <= Date.now()) {
+        foundAt = parsed.toISOString();
+      }
     }
 
     // Insert the find (the database triggers on_find_created will handle the streak updates and feed events)
@@ -59,6 +69,7 @@ Deno.serve(async (req) => {
         lng: lng || null,
         caption: caption || null,
         is_public: is_public ?? true,
+        ...(foundAt ? { created_at: foundAt } : {}),
       })
       .select(`
         *,

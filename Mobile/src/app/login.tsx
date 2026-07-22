@@ -18,6 +18,7 @@ import {
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator } from 'react-native';
 import { supabase } from '@/lib/supabase';
+import { signInWithProvider, type OAuthProvider } from '@/lib/auth';
 
 export default function Login() {
   const router = useRouter();
@@ -26,6 +27,20 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [oauthPending, setOauthPending] = useState<OAuthProvider | null>(null);
+
+  async function handleOAuth(provider: OAuthProvider) {
+    setError(null);
+    setOauthPending(provider);
+    try {
+      // On success the session provider in the root layout handles navigation.
+      await signInWithProvider(provider);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not sign in.');
+    } finally {
+      setOauthPending(null);
+    }
+  }
 
   async function handleLogin() {
     setError(null);
@@ -144,14 +159,34 @@ export default function Login() {
             <View style={styles.dividerLine} />
           </View>
 
-          <Pressable style={styles.socialButton}>
-            <MaterialCommunityIcons name="google" size={20} color="#2F4F3E" />
-            <Text style={styles.socialButtonText}>Login with Google</Text>
+          <Pressable
+            style={styles.socialButton}
+            onPress={() => handleOAuth('google')}
+            disabled={oauthPending !== null}
+          >
+            {oauthPending === 'google' ? (
+              <ActivityIndicator color="#2F4F3E" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="google" size={20} color="#2F4F3E" />
+                <Text style={styles.socialButtonText}>Login with Google</Text>
+              </>
+            )}
           </Pressable>
 
-          <Pressable style={styles.socialButton}>
-            <MaterialCommunityIcons name="apple" size={20} color="#2F4F3E" />
-            <Text style={styles.socialButtonText}>Login with Apple</Text>
+          <Pressable
+            style={styles.socialButton}
+            onPress={() => handleOAuth('discord')}
+            disabled={oauthPending !== null}
+          >
+            {oauthPending === 'discord' ? (
+              <ActivityIndicator color="#2F4F3E" />
+            ) : (
+              <>
+                <Ionicons name="logo-discord" size={20} color="#2F4F3E" />
+                <Text style={styles.socialButtonText}>Login with Discord</Text>
+              </>
+            )}
           </Pressable>
 
           <Text style={styles.footerText}>

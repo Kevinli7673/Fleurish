@@ -1,8 +1,12 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/supabase';
+
+/** Postgres unique-violation. Inserting a row that already exists is a no-op for us. */
+const UNIQUE_VIOLATION = '23505';
 
 export type IdentifiedPlant = {
   plant_id: string;
@@ -68,12 +72,33 @@ async function getMyUserId(): Promise<string> {
   return data.user.id;
 }
 
+/**
+ * Read a local photo as base64. expo-file-system has no web implementation, so on web we
+ * go through fetch + FileReader instead.
+ */
+async function readAsBase64(photoUri: string): Promise<string> {
+  if (Platform.OS !== 'web') {
+    return FileSystem.readAsStringAsync(photoUri, { encoding: 'base64' });
+  }
+
+  const blob = await (await fetch(photoUri)).blob();
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that photo.'));
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      resolve(dataUrl.slice(dataUrl.indexOf(',') + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
 /** Resize to ≤1024px wide and return a base64 data URL (keeps the edge function payload small). */
 async function toDataUrl(photoUri: string): Promise<string> {
   const context = ImageManipulator.manipulate(photoUri).resize({ width: 1024 });
   const rendered = await context.renderAsync();
   const saved = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
-  const base64 = await FileSystem.readAsStringAsync(saved.uri, { encoding: 'base64' });
+  const base64 = await readAsBase64(saved.uri);
   return `data:image/jpeg;base64,${base64}`;
 }
 
@@ -105,17 +130,21 @@ export async function identifyPlant(photoUri: string): Promise<IdentifiedPlant> 
 export async function uploadFindPhoto(localUri: string): Promise<string> {
   const myId = await getMyUserId();
 
-  let base64: string;
+  // The path must start with the user's id — the plant-photos insert policy requires it.
+  const path = `${myId}/${Date.now()}.jpg`;
+
+  let body: Blob | ArrayBuffer;
   try {
-    base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
+    body = Platform.OS === 'web'
+      ? await (await fetch(localUri)).blob()
+      : decode(await readAsBase64(localUri));
   } catch {
     throw new Error('Could not read that photo.');
   }
 
-  const path = `${myId}/${Date.now()}.jpg`;
   const { error } = await supabase.storage
     .from('plant-photos')
-    .upload(path, decode(base64), { contentType: 'image/jpeg' });
+    .upload(path, body, { contentType: 'image/jpeg' });
   if (error) throw new Error('Could not upload your photo.');
 
   return supabase.storage.from('plant-photos').getPublicUrl(path).data.publicUrl;
@@ -132,6 +161,8 @@ export async function createFind(input: {
   plant_id: string | null;
   caption?: string;
   is_public?: boolean;
+  /** When the plant was found, if the user picked a date other than now. */
+  found_at?: Date | null;
 }): Promise<{ id: string }> {
   const { data, error } = await supabase.functions.invoke('create-find', {
     body: {
@@ -141,10 +172,17 @@ export async function createFind(input: {
       plant_id: input.plant_id,
       caption: input.caption ?? null,
       is_public: input.is_public ?? true,
+      created_at: input.found_at ? input.found_at.toISOString() : null,
     },
   });
   if (error) throw new Error('Could not save your find.');
   return (data as { find: { id: string } }).find;
+}
+
+/** Delete one of your own finds. RLS rejects finds belonging to anyone else. */
+export async function deleteFind(findId: string): Promise<void> {
+  const { error } = await supabase.from('finds').delete().eq('id', findId);
+  if (error) throw new Error('Could not delete this sighting.');
 }
 
 /** The current user's finds, newest first (for the Garden). */
@@ -184,63 +222,69 @@ export async function getMyStreak(): Promise<Streak> {
   return { current: data?.current_streak ?? 0, longest: data?.longest_streak ?? 0 };
 }
 
-/** Toggle a like on a plant sighting finding. */
+/** Like a find. Idempotent — liking something already liked is not an error. */
+export async function likeFind(findId: string): Promise<void> {
+  const myId = await getMyUserId();
+  const { error } = await supabase.from('likes').insert({ user_id: myId, find_id: findId });
+  // A duplicate means a concurrent tap won the race; the end state is what we wanted.
+  if (error && error.code !== UNIQUE_VIOLATION) throw new Error('Could not like this find.');
+}
+
+/** Remove your like from a find. */
+export async function unlikeFind(findId: string): Promise<void> {
+  const myId = await getMyUserId();
+  const { error } = await supabase
+    .from('likes')
+    .delete()
+    .eq('user_id', myId)
+    .eq('find_id', findId);
+  if (error) throw new Error('Could not unlike this find.');
+}
+
+/** Toggle a like on a plant sighting. Returns the resulting liked state. */
 export async function toggleLike(findId: string): Promise<boolean> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not logged in');
+  const myId = await getMyUserId();
 
   const { data: existing } = await supabase
     .from('likes')
     .select('created_at')
-    .eq('user_id', user.id)
+    .eq('user_id', myId)
     .eq('find_id', findId)
     .maybeSingle();
 
   if (existing) {
-    const { error } = await supabase
-      .from('likes')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('find_id', findId);
-    if (error) throw error;
-    return false; // unliked
-  } else {
-    const { error } = await supabase
-      .from('likes')
-      .insert({ user_id: user.id, find_id: findId });
-    if (error) throw error;
-    return true; // liked
+    await unlikeFind(findId);
+    return false;
   }
+  await likeFind(findId);
+  return true;
+}
+
+/** Which of the given finds the current user has liked. One query for a whole list. */
+export async function getLikedFindIds(findIds: string[]): Promise<Set<string>> {
+  if (findIds.length === 0) return new Set();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return new Set();
+
+  const { data, error } = await supabase
+    .from('likes')
+    .select('find_id')
+    .eq('user_id', user.id)
+    .in('find_id', findIds);
+  if (error) throw new Error('Could not load likes.');
+
+  return new Set((data ?? []).map((row) => row.find_id as string));
 }
 
 /** Toggle a bookmark on a plant sighting finding into the "Want to Have" list. */
 export async function toggleBookmark(findId: string): Promise<boolean> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not logged in');
+  const listId = await getOrCreateWantToHaveList();
 
-  // 1. Get or create the 'Want to Have' list for the user
-  let { data: list } = await supabase
-    .from('lists')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('name', 'Want to Have')
-    .maybeSingle();
-
-  if (!list) {
-    const { data: newList, error: createError } = await supabase
-      .from('lists')
-      .insert({ user_id: user.id, name: 'Want to Have', icon: 'bookmark' })
-      .select('id')
-      .single();
-    if (createError) throw createError;
-    list = newList;
-  }
-
-  // 2. Check if item is already in list_items
   const { data: existingItem } = await supabase
     .from('list_items')
     .select('list_id')
-    .eq('list_id', list.id)
+    .eq('list_id', listId)
     .eq('find_id', findId)
     .maybeSingle();
 
@@ -248,17 +292,42 @@ export async function toggleBookmark(findId: string): Promise<boolean> {
     const { error } = await supabase
       .from('list_items')
       .delete()
-      .eq('list_id', list.id)
+      .eq('list_id', listId)
       .eq('find_id', findId);
-    if (error) throw error;
-    return false; // unbookmarked
-  } else {
-    const { error } = await supabase
-      .from('list_items')
-      .insert({ list_id: list.id, find_id: findId });
-    if (error) throw error;
-    return true; // bookmarked
+    if (error) throw new Error('Could not remove this bookmark.');
+    return false;
   }
+
+  await bookmarkFind(findId);
+  return true;
+}
+
+/** Add a find to "Want to Have". Idempotent — bookmarking twice is not an error. */
+export async function bookmarkFind(findId: string): Promise<void> {
+  const listId = await getOrCreateWantToHaveList();
+  const { error } = await supabase.from('list_items').insert({ list_id: listId, find_id: findId });
+  if (error && error.code !== UNIQUE_VIOLATION) throw new Error('Could not bookmark this find.');
+}
+
+/** The current user's "Want to Have" list, created on first use. */
+async function getOrCreateWantToHaveList(): Promise<string> {
+  const myId = await getMyUserId();
+
+  const { data: list } = await supabase
+    .from('lists')
+    .select('id')
+    .eq('user_id', myId)
+    .eq('name', 'Want to Have')
+    .maybeSingle();
+  if (list) return list.id as string;
+
+  const { data: newList, error } = await supabase
+    .from('lists')
+    .insert({ user_id: myId, name: 'Want to Have', icon: 'bookmark' })
+    .select('id')
+    .single();
+  if (error || !newList) throw new Error('Could not create your wishlist.');
+  return newList.id as string;
 }
 
 /** Check if a finding is liked and/or bookmarked by the current user. */

@@ -121,8 +121,8 @@ export default function Friends() {
       let active = true;
       async function loadLeaderboard() {
         try {
-          const sessionRes = await supabase.auth.getSession();
-          const userId = sessionRes.data.session?.user?.id;
+          const { data: { user } } = await supabase.auth.getUser();
+          const userId = user?.id;
 
           const { data, error } = await supabase.functions.invoke('get-leaderboard', {
             body: { scope: 'all_time', friend_group: null }
