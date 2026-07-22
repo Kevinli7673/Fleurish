@@ -36,8 +36,8 @@ export default function Profile() {
       let active = true;
       async function loadProfileData() {
         try {
-          const sessionRes = await supabase.auth.getSession();
-          const userId = sessionRes.data.session?.user?.id;
+          const { data: { user } } = await supabase.auth.getUser();
+          const userId = user?.id;
           if (!userId) return;
 
           const data = await getProfile(userId);

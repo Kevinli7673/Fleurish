@@ -114,8 +114,8 @@ export default function LogPlant() {
         }
       }
 
-      const sessionRes = await supabase.auth.getSession();
-      const userId = sessionRes.data.session?.user?.id;
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
       if (!userId) {
         throw new Error('No active user session found');
       }

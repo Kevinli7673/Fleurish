@@ -131,8 +131,8 @@ export default function Garden() {
           if (!active) return;
           setMyFinds(data);
 
-          const sessionRes = await supabase.auth.getSession();
-          const userId = sessionRes.data.session?.user?.id;
+          const { data: { user } } = await supabase.auth.getUser();
+          const userId = user?.id;
           if (userId && active) {
             // Load Favorites from liked sightings
             const { data: likesData, error: likesError } = await supabase
