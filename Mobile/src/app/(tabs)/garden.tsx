@@ -110,6 +110,7 @@ const SectionBlock = React.forwardRef<ScrollView, SectionBlockProps>(
     );
   }
 );
+SectionBlock.displayName = 'SectionBlock';
 
 export default function Garden() {
   const [searchOpen, setSearchOpen] = useState(false);

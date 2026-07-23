@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { photo_url, lat, lng, plant_id, caption, is_public, created_at } = await req.json();
+    const { photo_url, lat, lng, plant_id, caption, is_public, created_at, city } = await req.json();
 
     if (!photo_url) {
       return new Response(
@@ -57,6 +57,14 @@ Deno.serve(async (req) => {
       }
     }
 
+    // A human-readable place name ("City, Region") from the client's reverse geocode.
+    // Trimmed and length-capped because it is displayed verbatim in the find detail view.
+    let placeName: string | null = null;
+    if (typeof city === "string") {
+      const trimmed = city.trim();
+      if (trimmed) placeName = trimmed.slice(0, 120);
+    }
+
     // Insert the find (the database triggers on_find_created will handle the streak updates and feed events)
     console.log(`Inserting find for user: ${user.id}`);
     const { data: find, error: findErr } = await supabaseClient
@@ -68,6 +76,7 @@ Deno.serve(async (req) => {
         lat: lat || null,
         lng: lng || null,
         caption: caption || null,
+        city: placeName,
         is_public: is_public ?? true,
         ...(foundAt ? { created_at: foundAt } : {}),
       })

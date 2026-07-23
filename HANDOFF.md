@@ -662,3 +662,52 @@ Favorites.
 Rows already in `list_items` from the old capture-flow bookmarking are **not** cleaned up, so any
 plant of your own bookmarked before this change still shows under Want to Have. Removing them is a
 delete against production and was not done unprompted.
+
+---
+
+## 17. Cleanup pass — DONE 2026-07-23
+
+Everything here needed no decisions from Kevin. All merged to `main`, still unpushed.
+
+### `finds.city` is now written — **needs an edge function deploy**
+
+`city` was declared on `FindDetail` and selected by `getFind`, but nothing ever populated it, so
+the detail modal's location row could never render. Wired end to end:
+
+- `plantlog.tsx` sends `city: location || null` — the reverse-geocoded `"City, Region"` already
+  shown on the Log Location button (`Location.reverseGeocodeAsync`, `plantlog.tsx:73-83`).
+- `lib/finds.ts` `createFind` gained an optional `city` and forwards it.
+- `create-find/index.ts` accepts it, trims it, caps it at 120 chars (it is rendered verbatim in
+  the detail view) and inserts it.
+
+**This is code-only. The live `create-find` is still version 6 and ignores `city`, so the column
+stays null in production until the function is redeployed.** Existing finds are not backfilled;
+`lat`/`lng` are present on all 32, so a reverse-geocode backfill is possible but was not done.
+
+### Lint: 7 errors → 0
+
+21 warnings remain (unused vars, `import/no-duplicates`) — cosmetic, untouched.
+
+**Do not "fix" `react/no-unescaped-entities` with HTML entities.** React Native does not decode
+them, so `&apos;` renders literally as `&apos;` on a device. The four apostrophes were fixed with
+JSX string expressions (`{"Let's go!"}`) and the quoted note in `(tabs)/index.tsx:264` with a
+template literal. `garden.tsx`'s `forwardRef` got an explicit `displayName`.
+
+### Files and branches removed
+
+- Deleted the empty root `.env.local` (orphaned — Expo loads from `Mobile/`, which is untouched)
+  and `backend/nul` (23 KB stray pg_dump; the real backup is in `C:\Users\kevin\Fleurish-backups\`).
+  Both were untracked, so copies were left in the session scratchpad under `removed-strays/`.
+- Deleted the merged branches `fix/expo-sdk-57-and-web` (was `5a4576d`) and
+  `chore/downgrade-sdk-54` (was `9e381ff`). Both were fully contained in `main`; recreate with
+  `git branch <name> <sha>` if ever needed.
+
+### The 44 style deprecations of §9 are moot
+
+`shadow*` ×36, `textShadow*` ×3 and `pointerEvents` ×5 are all still in the code, but they were
+**RN 0.86** deprecations. On RN 0.81 they are not deprecated and emit nothing. The SDK 54 pin of
+§13 dissolved that item; it only returns if the project ever moves forward again.
+
+### Verification
+
+`tsc --noEmit` exit 0 · `expo lint` 0 errors · web export exit 0, 23/23 routes.

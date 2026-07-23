@@ -197,12 +197,12 @@ export default function Feed() {
           />
           <View style={styles.bloomTextWrap}>
             <Text style={styles.bloomTitle}>
-              <Text style={{ color: COLORS.pink }}>Today's </Text>
+              <Text style={{ color: COLORS.pink }}>{"Today's "}</Text>
               <Text style={{ color: '#E39B6B' }}>Bloom</Text>
             </Text>
             <Text style={styles.bloomSubtitle}>Find something{'\n'}pink today.</Text>
             <View style={styles.bloomButton}>
-              <Text style={styles.bloomButtonText}>Let's go!</Text>
+              <Text style={styles.bloomButtonText}>{"Let's go!"}</Text>
               <MaterialCommunityIcons name="arrow-right" size={16} color="#FFF" />
             </View>
           </View>
@@ -261,7 +261,7 @@ export default function Feed() {
               <Text style={styles.friendLocation}>{displayedFriendUpdate.location}</Text>
             </View>
             <Text style={styles.friendNote}>
-              Logged by {displayedFriendUpdate.loggedBy}. "{displayedFriendUpdate.note}"
+              Logged by {displayedFriendUpdate.loggedBy}. {`"${displayedFriendUpdate.note}"`}
             </Text>
             <View style={styles.friendFooterRow}>
               <View style={styles.matchPill}>
