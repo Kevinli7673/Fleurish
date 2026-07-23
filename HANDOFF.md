@@ -84,7 +84,21 @@ The plan was three parts: **fix bugs → edit login → set up for Vercel.**
 
 ---
 
-## 4. Pending migrations — none pushed, all now executed locally
+## 4. Migrations — PUSHED TO PRODUCTION 2026-07-22
+
+All five are live on `bekvvkgrpygpwqndqkjk`. Verified after the push: `spatial_ref_sys` in
+`extensions`, `anon` down to SELECT only, **0 public tables without RLS**, 32/32 finds
+backfilled with `location`, both triggers present, a forged `accepted` friendship rejected
+by RLS, and `anon`'s delete on `spatial_ref_sys` denied. Friendship rows still 6 — no test
+data was written to production.
+
+A pre-push backup (schema + data + roles) is in `C:\Users\kevin\Fleurish-backups\`, outside
+the repo. It is the only rollback path — Supabase does not generate down migrations.
+
+`db push` ends with a `pg-delta` "failed to cache migrations catalog" warning about a
+missing `pgdelta-target-ca.crt`. It is a post-push catalog-caching step, not the migration;
+all five applied and verified. Harmless.
+
 
 | File | Purpose |
 |---|---|
