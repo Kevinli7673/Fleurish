@@ -605,7 +605,60 @@ shipped. That is how this change was verified before the device test.
 | `plantident.tsx:181` | **`setLiked(prev => !prev)` — local state, never persisted** |
 | `plantlog.tsx:252` | **No `onPress` at all** — same defect as the §3 login buttons |
 
-`plantident`'s heart cannot be fixed by wiring alone: likes are keyed on `find_id`, but that
-screen only has `plantData.plantId` (a *plant* id). There is no `findId` in the file, and at that
-point in the capture flow the find may not exist yet. The real fix is to show the control only
-once the find is created, or move it after the save. Untouched — separate decision.
+**Correction, same day:** `plantident`'s heart was *not* dead. It is a **deferred** write — local
+state forwarded to `plantlog` as a nav param and applied after the find is created on save. The
+structural objection above was right (no `find_id` on that screen) but the code already solved it.
+Only `plantlog`'s own two icons were genuinely dead. See §16.
+
+---
+
+## 15. The Favorites section never worked — FIXED 2026-07-23
+
+Liking wrote to the database correctly the whole time. **The Garden could never read it back.**
+
+`garden.tsx` selected `likes.id`, but `likes` has no `id` column — its primary key is the
+composite `(user_id, find_id)` (`init_schema.sql:74-79`). PostgREST answers that with
+`42703 column likes.id does not exist`. Verified directly against production:
+
+```
+/rest/v1/likes?select=id      -> {"code":"42703","message":"column likes.id does not exist"}
+/rest/v1/likes?select=find_id -> []
+```
+
+The failure was invisible because the guard read `if (active && likesData && !likesError)`, so an
+error simply skipped `setFavorites` and left the section empty. Fixed by selecting `find_id`, and
+both this query and the Want to Have one now `console.error` on failure — the swallow is what let
+this survive undetected.
+
+`list_items` is keyless in the same way, but its query already selected `find_id`, so Want to Have
+was never affected.
+
+**Symptom worth recognising again:** a feature that writes fine and reads back fine in one place
+(the modal's `getFindUserStatus`) but vanishes on a list refetch. That shape points at the list
+query, not the write.
+
+---
+
+## 16. Capture flow: bookmarking removed, like errors surfaced — DONE 2026-07-23
+
+**Runtime-verified on the phone:** capture → identify → heart → log → the plant appears under
+Favorites.
+
+- **Bookmarking is gone from the capture flow.** "Want to Have" is for plants you have *not*
+  found; offering it on your own freshly logged sighting was incoherent. Removed the control from
+  `plantident`, the `bookmarked` nav param, and the ~25 lines in `plantlog` that applied it.
+- **Want to Have is now written from one place only:** the Home feed's bookmark on a friend's
+  find (`(tabs)/index.tsx` → `toggleBookmark`), which is the case the list is for.
+- **The deferred like now goes through `likeFind`** instead of an inline insert that had **no
+  error check at all**. On failure it logs and tells the user but does *not* fail the save — the
+  photo upload and find creation already succeeded, so discarding a logged plant over a failed
+  heart would be the wrong trade.
+- **Removed `plantlog`'s two decorative icons** — no `onPress`, hard-coded to the empty outline,
+  so they never reflected what was chosen on the previous screen. Plus the now-orphaned
+  `photoTopRight` style.
+
+### Left behind on purpose
+
+Rows already in `list_items` from the old capture-flow bookmarking are **not** cleaned up, so any
+plant of your own bookmarked before this change still shows under Want to Have. Removing them is a
+delete against production and was not done unprompted.
