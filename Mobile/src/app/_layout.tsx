@@ -14,6 +14,11 @@ export default function RootLayout() {
 
     const segs = segments as string[];
     const currentRoute = segs[0] || 'index';
+
+    // A recovery link signs the user in so they can choose a new password. Both branches
+    // below would fight that — the session would bounce them straight into the app — so
+    // this screen navigates on its own once the password is actually changed.
+    if (currentRoute === 'reset-password') return;
     const isAuthScreen = ['login', 'signup', 'verify', 'forgpassword'].includes(currentRoute) || 
                          (segs.length === 1 && currentRoute === 'index') || 
                          segs.length === 0;

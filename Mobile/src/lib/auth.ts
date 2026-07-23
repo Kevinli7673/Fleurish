@@ -84,3 +84,36 @@ export async function signInWithProvider(provider: OAuthProvider): Promise<boole
   await createSessionFromUrl(result.url);
   return true;
 }
+
+/**
+ * Where the password-recovery email should send the user back to. Like the OAuth
+ * redirect above, this has to be allow-listed in Supabase's auth redirect URLs.
+ */
+function recoveryRedirectUrl(): string {
+  return Platform.OS === 'web'
+    ? `${window.location.origin}/reset-password`
+    : Linking.createURL('/reset-password');
+}
+
+/**
+ * Send a password-reset email.
+ *
+ * Supabase deliberately resolves the same way whether or not the address has an account,
+ * so that this cannot be used to discover who is registered. A success here means the
+ * request was accepted, not that a mail was delivered.
+ */
+export async function sendPasswordReset(email: string): Promise<void> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: recoveryRedirectUrl(),
+  });
+  if (error) throw error;
+}
+
+/**
+ * Set a new password for the currently signed-in user. Following a recovery link counts
+ * as signed in, which is what lets this finish the forgot-password flow.
+ */
+export async function updatePassword(password: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+}
