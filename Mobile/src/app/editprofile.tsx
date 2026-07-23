@@ -10,7 +10,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,6 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useProfile } from '@/context/profilecontext';
+import { Alert } from '@/lib/alert';
 import { updateProfile, uploadAvatar } from '@/lib/profile';
 
 export default function EditProfile() {
