@@ -15,6 +15,7 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 import { Alert } from '@/lib/alert';
+import { likeFind } from '@/lib/finds';
 import { supabase } from '@/lib/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -29,7 +30,6 @@ export default function LogPlant() {
     plantName?: string;
     plantId?: string;
     liked?: string;
-    bookmarked?: string;
   }>();
 
   const plantName = params.plantName ?? 'Monstera deliciosa';
@@ -162,37 +162,18 @@ export default function LogPlant() {
       const createdFind = data as { find: { id: string } } | null;
       const createdFindId = createdFind?.find?.id;
 
-      if (createdFindId) {
-        // Propagate Favorite (Like) status to database on save
-        if (params.liked === 'true') {
-          await supabase
-            .from('likes')
-            .insert({ user_id: userId, find_id: createdFindId });
-        }
-
-        // Propagate Bookmark (Want to Have) status to database on save
-        if (params.bookmarked === 'true') {
-          let { data: list } = await supabase
-            .from('lists')
-            .select('id')
-            .eq('user_id', userId)
-            .eq('name', 'Want to Have')
-            .maybeSingle();
-
-          if (!list) {
-            const { data: newList } = await supabase
-              .from('lists')
-              .insert({ user_id: userId, name: 'Want to Have', icon: 'bookmark' })
-              .select('id')
-              .single();
-            list = newList;
-          }
-
-          if (list) {
-            await supabase
-              .from('list_items')
-              .insert({ list_id: list.id, find_id: createdFindId });
-          }
+      // The heart on the identify screen can't write immediately — the find doesn't exist
+      // yet — so it rides here as a param and is applied now that we have an id.
+      if (createdFindId && params.liked === 'true') {
+        try {
+          await likeFind(createdFindId);
+        } catch (e) {
+          // The sighting itself saved, so don't fail the whole flow over the favorite.
+          console.error('Saved the sighting but could not favorite it:', e);
+          Alert.alert(
+            'Saved, but not favorited',
+            'Your sighting was saved. Adding it to Favorites failed — you can favorite it from your Garden.'
+          );
         }
       }
 
@@ -245,14 +226,6 @@ export default function LogPlant() {
         <Pressable style={styles.circleButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
         </Pressable>
-        <View style={styles.photoTopRight}>
-          <Pressable style={styles.circleButton}>
-            <MaterialCommunityIcons name="bookmark-outline" size={18} color="#FFFFFF" />
-          </Pressable>
-          <Pressable style={styles.circleButton}>
-            <MaterialCommunityIcons name="heart-outline" size={18} color="#FFFFFF" />
-          </Pressable>
-        </View>
       </View>
 
       <ScrollView
@@ -355,10 +328,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: '12%',
     paddingBottom: 10,
-  },
-  photoTopRight: {
-    flexDirection: 'row',
-    gap: 10,
   },
   circleButton: {
     width: 36,
