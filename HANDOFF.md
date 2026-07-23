@@ -443,7 +443,9 @@ Ordered by what unblocks the most.
 
 1. **Run the app and click through it.** Everything in §9 and §10 is verified by compiler and
    bundler only. Start with the Garden modal (open, delete, the Favorites variant with no
-   delete button) and the login screen.
+   delete button) and the login screen. **This is now unblocked on the iPhone** — the SDK 54
+   downgrade of §13 means the existing App Store Expo Go will connect. `npx expo start` in
+   `Mobile/`, scan the QR. Note OAuth still will not work in Expo Go (§6).
 2. **Dashboard config** — nothing in code can proceed past this. Enable Google + Discord
    (§9), configure SMTP for the reset flow, and allow-list the redirect URLs:
    `http://localhost:8081/reset-password`, `fleurish://reset-password`, and the Vercel domain
@@ -453,8 +455,157 @@ Ordered by what unblocks the most.
 4. **Native deep-linking** for the password reset link — there is no `Linking` listener
    anywhere in the app, so the emailed link cannot reopen it on iOS/Android. Roughly 15 lines
    in `_layout.tsx`.
-5. **Expo Go**, if a phone is wanted: needs 57.0.5 (iOS) / 57.0.2 (Android). Never resolved
-   whether the App Store refuses to update because of a device-support wall or a stale cache
-   — the two numbers that settle it are the phone's iOS version and its Expo Go version.
+5. ~~**Expo Go**, if a phone is wanted~~ — **RESOLVED 2026-07-23, see §12.** The answer was
+   neither a device-support wall nor a stale cache: Expo Go for SDK 57 was never published to
+   the App Store. Android has a sideloadable APK; iOS has no free path from Windows.
 6. Optional cleanups: the 44 style deprecations, the 26 lint errors, `finds.city`,
    `backend/nul`, the empty root `.env.local`.
+
+---
+
+## 12. The Expo Go dead end — RESOLVED 2026-07-23
+
+**Stop trying to update Expo Go on the iPhone. The build does not exist.**
+
+§11.5 framed this as "device-support wall or stale cache." It is neither. Expo Go for
+SDK 57 was never approved to the App Store — Expo's own SDK 57 changelog says *"We'd like to
+release a new version for SDK 57, but we're still waiting on approval."* The same thing
+happened to SDK 55 in May 2026, which sat unapproved with no timeline given. The "57.0.5 (iOS)"
+version number in the old §9/§11 notes was wrong; no such iOS build was ever published.
+
+For the record, SDK 57's actual floor is **iOS 16.4+ / Android 7+** (Xcode 26.4+). That was
+the "device-support wall" hypothesis and it is not what is biting — the wall is Apple review.
+
+### The toolchain is fine — verified 2026-07-23
+
+Re-confirmed before diagnosing, so this is not the cause: `expo install --check` → up to date;
+Metro serving on 8081; all three platforms bundle 200 (web 3.9 MB, android 6.1 MB, ios 5.5 MB).
+Nothing in §9 regressed.
+
+### Paths to a running app
+
+| Path | Status |
+|---|---|
+| Android APK | **Works today.** Expo Go 57.0.2, sideload, bypasses the Play Store |
+| Web | Works today |
+| iPhone + Expo Go | Not obtainable — not in the App Store |
+| iPhone via `eas go` / dev build | Needs a **paid Apple Developer account** for signing |
+| iOS Simulator | macOS only; this is a Windows 11 machine |
+
+Android APK (verified live, HTTP 200):
+`https://github.com/expo/expo-go-releases/releases/download/Expo-Go-57.0.2/Expo-Go-57.0.2.apk`
+
+**On a Windows machine with no Apple Developer account, there is no path to an iPhone at all.**
+That is a hard blocker, not a code problem. Android and web are the only real targets.
+
+### Why Expo Go may be the wrong goal regardless
+
+Per §6, **OAuth does not work in Expo Go** — `Linking.createURL` redirects are undefined there.
+So Google/Discord login and the §9 password-reset deep link, two of the main things §11.1 wants
+clicked through, will not work even after Expo Go is installed. Expo now positions Expo Go as
+"first and foremost an educational tool to help beginners," not a dev environment.
+
+A **development build** is the path where OAuth and deep links actually function. Nothing is set
+up for it yet: no `eas.json`, no `extra.eas.projectId` in `app.json`, `eas-cli` not installed.
+Android dev builds need only a free Expo account (EAS servers or local); iOS device builds need
+the paid Apple account.
+
+---
+
+## 13. Downgraded to SDK 54 — DONE 2026-07-23
+
+**Decision: the project is deliberately pinned to SDK 54. Do not upgrade it.**
+
+SDK 54 is the newest Expo Go build Apple ever approved, so it is the newest SDK that runs on a
+physical iPhone without a $99/yr Apple Developer account. §12 is the reasoning. `Mobile/AGENTS.md`
+now says this too, and points at the v54 docs rather than v57.
+
+This was Kevin's recall — "a previous version of expo worked for us" — and it was exactly right.
+Git confirms SDK 54 was coherent across five commits through `c719479` (2026-07-11):
+`expo ~54.0.0`, `expo-router ~6.0.24`, RN 0.81.5, react 19.1.0. Commit `ed72fdd` (07-22) then
+bumped **only** `expo` to `^57.0.7` and left the other 31 packages on 54 — that is the origin of
+the half-applied upgrade, and of the `expo-router/internal/routing` crash in §9.
+
+### What changed
+
+Branch `chore/downgrade-sdk-54`, off `fix/expo-sdk-57-and-web` at `5a4576d`.
+
+- `package.json` — 32 pinned versions restored to their SDK 54 values (RN 0.86.0 → 0.81.5,
+  react 19.2.3 → 19.1.0, TS 6.0.3 → 5.9.2, every `expo-*` renumbered, `@expo/ui` 57.0.7 →
+  `~0.2.0-beta.9`). `eslint-config-expo` 57.0.0 → `~10.0.0` to match the era; `eslint` kept.
+- `animated-icon.tsx:142` — `...StyleSheet.absoluteFill` → `...absoluteFillObject`. **The only
+  SDK-sensitive line in the whole app.** On RN 0.81 `absoluteFill` is a registered style ID (a
+  number), so spreading it silently yields nothing. The other 16 `absoluteFill` uses pass it as a
+  style *value*, which is correct on both versions and needed no change.
+- `app.json` — dropped the four config plugins `expo install --fix` had added (`expo-font`,
+  `expo-image`, `expo-status-bar`, `expo-web-browser`); not required at 54.
+
+### What survived untouched
+
+All of §9 and §10 is plain JS/React and is SDK-agnostic: the `lib/alert.ts` shim, the
+`lib/supabase.ts` `window` check, the `login.tsx` JSX whitespace fix, the forgot-password flow
+(`lib/auth.ts`, `reset-password.tsx`, the `_layout.tsx` exemption), OAuth in `lib/auth.ts`, and
+the whole Garden detail modal. Nothing was reverted to get back to 54.
+
+### Verification — all re-run on the 54 tree
+
+`npx expo --version` → **54.0.26** (the CLI now resolves to 54, which is what makes the §9 crash
+impossible) · `expo install --check` → up to date · `tsc --noEmit` exit 0 · Metro starts clean,
+no `expo-router/internal/routing` · bundles 200 on all three platforms (ios 6.27 MB, android
+6.27 MB, web 3.65 MB) · `expo export --platform web` exit 0, **23/23 routes**, same as 57.
+
+Manifest serves `runtimeVersion: "exposdk:54.0.0"` — the exact handshake the App Store's Expo Go
+accepts, so the phone will connect.
+
+**The feared TypeScript regression did not happen.** §6 credited the 57 upgrade with fixing the
+`animated-icon.web.tsx` CSS-module error; `tsc` is clean on TS 5.9 too, so that fix was not
+version-dependent.
+
+### Still true after the downgrade
+
+- **OAuth remains untestable in Expo Go** (§6) — `Linking.createURL` redirects are undefined
+  there on any SDK. Downgrading buys a phone, not a login test. Only a dev build buys that.
+- The 44 RN style deprecations of §9 were never applied, so nothing to undo there.
+
+---
+
+## 14. Favorite from the detail modal — DONE 2026-07-23, RUNTIME-VERIFIED
+
+The Garden detail modal (§10) offered delete but no way to favorite. Added a heart overlaid on
+the photo at top-left, mirroring the existing close button at top-right. Commit `3c1b8be`.
+
+**This is the first thing in this whole body of work confirmed on a real phone**, on SDK 54 via
+Expo Go. Kevin tapped it and the favorite persisted. Everything else in §9, §10 and §13 is still
+compiler-and-bundler verified only.
+
+- No new data layer: `getFindUserStatus` and `toggleLike` already existed in `lib/finds.ts`.
+  The liked state loads in the same `Promise.all` as the find detail, so opening costs no extra
+  round-trip.
+- Favoriting is offered on **every** find, unlike delete. The Favorites and Want to Have sections
+  hold other people's finds and favoriting those is the point of the list.
+- The toggle is optimistic with rollback, because a round-trip per tap feels broken on a phone.
+- Opening a modal does **not** unfocus the screen, so the Garden's `useFocusEffect` will not
+  refetch on close. The Favorites section is patched directly from card data already on screen.
+
+### Bundling from Metro is a weak check — use `expo export`
+
+Worth knowing, because §9/§10/§13 all leaned on it: **expo-router lazily loads routes, so the
+Metro entry bundle contains framework code only, not the screens.** Grepping a 200-OK
+`entry.bundle` for app strings returns nothing — `Delete sighting` and `Your Garden` are both
+absent. A 200 there proves the graph resolves and nothing more; it would pass with a broken
+screen. `npx expo export` bundles every route, and grepping its output does confirm the code
+shipped. That is how this change was verified before the device test.
+
+### Three other hearts exist, two of them dead
+
+| Where | State |
+|---|---|
+| `(tabs)/index.tsx` (Home) | Wired — calls `toggleLike`, works |
+| `find-detail-modal.tsx` | Wired — this change, verified on device |
+| `plantident.tsx:181` | **`setLiked(prev => !prev)` — local state, never persisted** |
+| `plantlog.tsx:252` | **No `onPress` at all** — same defect as the §3 login buttons |
+
+`plantident`'s heart cannot be fixed by wiring alone: likes are keyed on `find_id`, but that
+screen only has `plantData.plantId` (a *plant* id). There is no `findId` in the file, and at that
+point in the capture flow the find may not exist yet. The real fix is to show the control only
+once the find is created, or move it after the save. Untouched — separate decision.
