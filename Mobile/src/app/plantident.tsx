@@ -85,7 +85,6 @@ export default function PlantResult() {
   const params = useLocalSearchParams<{ photoUri?: string; result?: string }>();
   const [spotters, setSpotters] = useState<any[]>([]);
   const [liked, setLiked] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
 
   // Parse dynamic result from identify-plant Edge Function
   let apiPlant = null;
@@ -171,14 +170,16 @@ export default function PlantResult() {
             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </Pressable>
           <View style={styles.photoTopRight}>
-            <Pressable style={styles.circleButton} onPress={() => setBookmarked(prev => !prev)}>
-              <MaterialCommunityIcons
-                name={bookmarked ? "bookmark" : "bookmark-outline"}
-                size={18}
-                color={bookmarked ? "#D9637A" : "#FFFFFF"}
-              />
-            </Pressable>
-            <Pressable style={styles.circleButton} onPress={() => setLiked(prev => !prev)}>
+            {/* No bookmark here: "Want to Have" is for plants you haven't found. This is your
+                own sighting, so wanting it makes no sense. Bookmarking lives on the feed,
+                where the find belongs to someone else. */}
+            <Pressable
+              style={styles.circleButton}
+              onPress={() => setLiked(prev => !prev)}
+              accessibilityRole="button"
+              accessibilityLabel={liked ? 'Remove from favorites' : 'Add to favorites'}
+              accessibilityState={{ selected: liked }}
+            >
               <MaterialCommunityIcons
                 name={liked ? "heart" : "heart-outline"}
                 size={18}
@@ -250,7 +251,6 @@ export default function PlantResult() {
                     plantName: plantData.commonName,
                     plantId: plantData.plantId,
                     liked: liked ? 'true' : 'false',
-                    bookmarked: bookmarked ? 'true' : 'false',
                   },
                 })
               }
