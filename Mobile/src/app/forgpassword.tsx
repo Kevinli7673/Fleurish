@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFonts } from 'expo-font';
@@ -16,10 +17,33 @@ import {
   PlayfairDisplay_700Bold,
 } from '@expo-google-fonts/playfair-display';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { sendPasswordReset } from '@/lib/auth';
 
 export default function ForgotPassword() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+
+  const handleSendResetLink = async () => {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      setError('Enter the email you signed up with.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      await sendPasswordReset(trimmed);
+      setSent(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send the reset link.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [fontsLoaded] = useFonts({
     PlayfairDisplay_700Bold,
@@ -71,11 +95,31 @@ export default function ForgotPassword() {
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
+              editable={!loading && !sent}
             />
           </View>
 
-          <Pressable style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Send reset link  →</Text>
+          {error && <Text style={styles.errorText}>{error}</Text>}
+
+          {sent && (
+            <Text style={styles.sentText}>
+              If an account exists for that address, a reset link is on its way. Check your
+              inbox and spam folder.
+            </Text>
+          )}
+
+          <Pressable
+            style={[styles.primaryButton, (loading || sent) && styles.buttonDisabled]}
+            onPress={handleSendResetLink}
+            disabled={loading || sent}
+          >
+            {loading ? (
+              <ActivityIndicator color="#2F4F3E" />
+            ) : (
+              <Text style={styles.primaryButtonText}>
+                {sent ? 'Link sent' : 'Send reset link  →'}
+              </Text>
+            )}
           </Pressable>
 
           <Pressable
@@ -156,6 +200,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
+  errorText: {
+    color: '#e5484d',
+    marginTop: 12,
+    textAlign: 'center',
+    fontFamily: 'Author-Variable',
+  },
+  sentText: {
+    color: '#2F4F3E',
+    marginTop: 12,
+    textAlign: 'center',
+    fontFamily: 'Author-Variable',
+    fontSize: 15,
+    lineHeight: 18,
+  },
   primaryButton: {
     backgroundColor: '#E8A83D',
     borderRadius: 26,
@@ -164,6 +222,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 40,
     marginBottom: 22,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   primaryButtonText: {
     fontFamily: 'Author-Variable',
