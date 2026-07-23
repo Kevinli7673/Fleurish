@@ -255,21 +255,23 @@ top-level DML that follows a role-switching block.
 - `Mobile/eslint.config.js` and the `eslint` / `eslint-config-expo` devDependencies were
   added as a side effect of running `npm run lint` for the first time. Harmless, but they're
   riding along in this diff — revert if unwanted.
-- Pre-existing `tsc` error in `Mobile/src/components/animated-icon.web.tsx` (missing CSS
-  module types). Expo template leftover from the initial commit, unrelated to this work.
+- ~~Pre-existing `tsc` error in `Mobile/src/components/animated-icon.web.tsx` (missing CSS
+  module types).~~ **Resolved** by the SDK 57 upgrade (§9) — the file still exists, but
+  `tsc --noEmit` is now clean across the whole project.
 
 ---
 
 ## 7. Git state
 
-All of the work described above is committed on `main` at `ed72fdd` ("wip: security
-migrations, oauth login, web groundwork") — 18 files, unpushed. The safety-net commit was
-made before the reboot.
+The migration work is committed on `main`, which now ends at `eef93c8` ("docs: record
+create-find deploy in handoff"). Unpushed.
 
-Uncommitted on top of that: the `…000100` rewrite described in §4.
+The SDK 57 and web work of §9 is on branch **`fix/expo-sdk-57-and-web`** — three commits
+(`ba9b21d`, `776dbbe`, `66b9200`) plus this handoff update. Branched rather than committed
+to `main` because it is a large multi-part change; fast-forward with
+`git checkout main && git merge fix/expo-sdk-57-and-web` if that is not wanted.
 
-`tsc --noEmit` passes (except the pre-existing `animated-icon.web.tsx` error) and ESLint
-reports nothing new from these changes.
+`tsc --noEmit` now passes with no exceptions.
 
 ---
 
@@ -295,3 +297,98 @@ npx supabase db reset      # fixed schema, expect BLOCKED lines
 ```
 
 Worth moving into the repo if these checks should survive the session.
+
+---
+
+## 9. SDK 57 alignment and web support — DONE 2026-07-22
+
+Three commits on `fix/expo-sdk-57-and-web`, branched from `main` at `eef93c8`.
+
+### What was broken
+
+`npx expo start` crashed before Metro came up with
+`Cannot find module 'expo-router/internal/routing'`. The SDK 54 → 57 upgrade flagged in §3
+was half-applied: `@expo/cli` 57 loads `@expo/router-server`, which imports a subpath that
+exists only in `expo-router` 57, while the project pinned `expo-router` at 6.0.24.
+
+Note that reverting was **not** an escape hatch — the old `package.json` already had
+`"expo": "^57.0.7"`, and that caret is what resolved the CLI to 57 in the first place. The
+pre-upgrade tree was unrunnable.
+
+### The upgrade
+
+`npx expo install --fix` (two passes) moved all 32 stale packages: `react-native`
+0.81.5 → 0.86.0, `react` 19.1.0 → 19.2.3, `typescript` 5.9 → 6.0.3, every `expo-*` module
+renumbered onto the SDK version, `@expo/ui` beta → 57.0.7 stable. It also added the
+`expo-font`, `expo-image`, `expo-status-bar` and `expo-web-browser` config plugins to
+`app.json`.
+
+One RN 0.86 removal hit real code: `StyleSheet.absoluteFillObject` is gone from the runtime,
+not merely deprecated. `absoluteFill` was previously a registered style ID (a number, hence
+unspreadable) — in 0.86 it *is* the plain object, so `...StyleSheet.absoluteFill` is the
+correct replacement.
+
+### Three pre-existing defects, surfaced by running on web
+
+1. **Static rendering executes the app in Node**, where `window` is absent. The Supabase
+   client is built at module scope and immediately calls `storage.getItem`; AsyncStorage's
+   web build touches `window`. `Platform.OS` is `'web'` during server rendering too, so it
+   cannot tell browser from server — `lib/supabase.ts` now checks for `window` directly.
+2. **`Alert.alert` did nothing on web.** react-native-web ships `class Alert { static
+   alert() {} }` — literally empty. All 24 call sites across five screens were dead, so
+   delete confirmations never appeared and `catch` blocks reporting failures only through
+   `Alert` swallowed them. `lib/alert.ts` is a drop-in shim: call sites unchanged, only the
+   import moves.
+3. **A whitespace text node in `login.tsx`** between a `Pressable`'s opening tag and its
+   `Text` child, on one line. JSX only strips whitespace at line boundaries.
+
+### Forgot-password flow — implemented, not yet end-to-end tested
+
+The screen was UI only: the button had no `onPress`, the email state was never read, and
+`resetPasswordForEmail` appeared nowhere in the codebase. There was no landing route either.
+Added `sendPasswordReset` / `updatePassword` to `lib/auth.ts`, wired the button, and added a
+`reset-password` route.
+
+`_layout.tsx` needed an exemption: a recovery link **signs the user in**, so the existing
+"session on an auth screen → redirect to `(tabs)`" rule would have bounced them into the app
+before they could choose a password.
+
+Still required before it works: SMTP on the project, and `http://localhost:8081/reset-password`
+plus the eventual Vercel URL allow-listed. **Native is not wired** — there is no `Linking`
+listener anywhere in the app, so the emailed link will not reopen it on iOS/Android.
+
+### Environment — the thing that cost the most time
+
+`Mobile/.env.local` had been **empty and in the wrong directory** (repo root) since 21:33.
+There is no root JS project — only `backend/` and `Mobile/` — so a root `.env.local` is
+silently ignored. Expo loads `.env*` from the project root, which is `Mobile/`.
+
+Only two vars are needed: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+The project's anon key is the **new** Supabase format (`sb_publishable_…`), not a legacy
+`eyJ…` JWT. Restart with `--clear` after changing it — Expo inlines `EXPO_PUBLIC_*` at
+bundle time.
+
+When smoke-testing credentials, query a table. `/rest/v1/` root returns 401 for anon on this
+project because the security migrations revoked schema introspection; that is expected and
+not a misconfiguration.
+
+### Verification
+
+`expo install --check` clean · `tsc --noEmit` exit 0 · web export 23/23 routes exit 0 ·
+android bundle exit 0. Not verified: any of it running on a real device, and `@expo/ui`
+behaviour after the beta → stable jump.
+
+### Outstanding
+
+- **Google and Discord are not enabled on the live project.** Confirmed by querying
+  `/auth/v1/settings` on `bekvvkgrpygpwqndqkjk`: only `email` is on. §3 recorded login as
+  done, which was true of the code but never of the project. The button fails with
+  `"Unsupported provider: provider is not enabled"`. Dashboard work, not code.
+- 44 RN 0.86 style deprecations (`shadow*` → `boxShadow` ×36, `textShadow*` ×3,
+  `pointerEvents` prop ×5). Warnings only; deliberately left for a separate pass.
+- `expo lint` reports 47 problems (26 errors), mostly `react-hooks/set-state-in-effect` from
+  the stricter eslint-config-expo 57 rules. Surfaced by the upgrade, not caused by it.
+- Expo Go on the phone is still SDK-mismatched; SDK 57 needs Expo Go **57.0.5** (iOS) /
+  **57.0.2** (Android). Web and the Android APK are the unblocked paths.
+- `backend/nul` (23 KB pg_dump) and the empty root `.env.local` are stray files from a
+  botched shell redirect. Untracked; safe to delete.
