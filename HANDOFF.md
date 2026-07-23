@@ -266,10 +266,11 @@ top-level DML that follows a role-switching block.
 The migration work is committed on `main`, which now ends at `eef93c8` ("docs: record
 create-find deploy in handoff"). Unpushed.
 
-The SDK 57 and web work of §9 is on branch **`fix/expo-sdk-57-and-web`** — three commits
-(`ba9b21d`, `776dbbe`, `66b9200`) plus this handoff update. Branched rather than committed
-to `main` because it is a large multi-part change; fast-forward with
-`git checkout main && git merge fix/expo-sdk-57-and-web` if that is not wanted.
+The SDK 57 and web work of §9, and the Garden modal of §10, are on branch
+**`fix/expo-sdk-57-and-web`** — branched rather than committed to `main` because it is a
+large multi-part change. Fast-forward with
+`git checkout main && git merge fix/expo-sdk-57-and-web` if that is not wanted. Nothing is
+pushed; `main` was already unpushed before this work.
 
 `tsc --noEmit` now passes with no exceptions.
 
@@ -392,3 +393,68 @@ behaviour after the beta → stable jump.
   **57.0.2** (Android). Web and the Android APK are the unblocked paths.
 - `backend/nul` (23 KB pg_dump) and the empty root `.env.local` are stray files from a
   botched shell redirect. Untracked; safe to delete.
+
+---
+
+## 10. Garden detail modal — DONE 2026-07-23
+
+Tapping a plant in the Garden used to fire an `Alert` offering only Cancel/Delete (and for
+the other two sections, a dead-end "This is a plant in your favorites list"). It now opens
+`Mobile/src/components/find-detail-modal.tsx`: the photo at full modal width instead of
+96×96, everything recorded at capture time, and a delete action.
+
+### Design decisions
+
+- **A modal, not a route.** Keeps scroll position and the already-loaded garden state, so
+  dismissing costs no refetch.
+- **One modal serves all three sections.** Favorites and Want to Have store find ids too
+  (`like.finds.id`, `item.finds.id`), so they all open the same view.
+- **Delete only on your own finds.** The other two sections hold *other people's* finds, so
+  the modal compares `find.user_id` against `auth.getUser()` and hides the button otherwise.
+  RLS would reject it anyway — this avoids offering a button that can only fail.
+- The list query stays lean. `getMyFinds` still selects only what the cards need; the modal
+  calls the existing `getFind(id)` on open, which is where `city`, `care_tips`,
+  `light_requirement` and `water_requirement` come from.
+- Deleting removes the id from all three lists, since one find can appear in more than one.
+- The delete confirmation only works because of the `Alert` shim from §9. Before that it
+  would have silently done nothing on web.
+
+### Found while wiring it up: `finds.city` is never written
+
+The modal renders a location row, but it will not appear, because nothing populates the
+column. In `plantlog.tsx:206` the location text the user sees being captured is forwarded as
+a **navigation param** to `/plantdoctor` and nowhere else. `createFind` has no `city` field,
+and the `create-find` edge function does not derive one. Only `lat`/`lng` reach the database.
+
+The data to backfill it exists. The row is left in place, rendered conditionally, so it
+lights up as soon as that is fixed. Not fixed here — separate bug, separate decision.
+
+### Verification
+
+`tsc --noEmit` exit 0 · web export 23/23 routes exit 0 · android bundle exit 0.
+**Not runtime-tested** — nothing in §9 or §10 has been exercised on a real device or in a
+browser by hand beyond the login screen.
+
+---
+
+## 11. Picking up tomorrow
+
+Ordered by what unblocks the most.
+
+1. **Run the app and click through it.** Everything in §9 and §10 is verified by compiler and
+   bundler only. Start with the Garden modal (open, delete, the Favorites variant with no
+   delete button) and the login screen.
+2. **Dashboard config** — nothing in code can proceed past this. Enable Google + Discord
+   (§9), configure SMTP for the reset flow, and allow-list the redirect URLs:
+   `http://localhost:8081/reset-password`, `fleurish://reset-password`, and the Vercel domain
+   when it exists.
+3. **Vercel.** The web export works now, which was the blocker. Still no `vercel.json`, no
+   `.vercel/`, no web build script.
+4. **Native deep-linking** for the password reset link — there is no `Linking` listener
+   anywhere in the app, so the emailed link cannot reopen it on iOS/Android. Roughly 15 lines
+   in `_layout.tsx`.
+5. **Expo Go**, if a phone is wanted: needs 57.0.5 (iOS) / 57.0.2 (Android). Never resolved
+   whether the App Store refuses to update because of a device-support wall or a stale cache
+   — the two numbers that settle it are the phone's iOS version and its Expo Go version.
+6. Optional cleanups: the 44 style deprecations, the 26 lint errors, `finds.city`,
+   `backend/nul`, the empty root `.env.local`.
