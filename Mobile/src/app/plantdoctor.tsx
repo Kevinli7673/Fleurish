@@ -16,6 +16,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { diagnosePlant, type PlantDiagnosis } from '@/lib/finds';
 
 type Message = {
   id: string;
@@ -57,7 +58,7 @@ export default function PlantDoctor() {
 
     if (isAuto) {
       const userMsgText = `📋 *Log Details*:\n• Date: ${initDate}\n• Location: ${initLoc}\n• Notes: "${initNote || 'None'}"\n\nDoctor, please analyze my plant's health.`;
-      
+
       const userMsg: Message = {
         id: 'auto-user',
         text: userMsgText,
@@ -68,10 +69,21 @@ export default function PlantDoctor() {
       setMessages([welcomeMsg, userMsg]);
       setIsTyping(true);
 
-      const delay = setTimeout(() => {
-        const diagnosticText = generateDoctorResponse(initNote || 'general care');
-        const finalDiagnosis = `🩺 *Health Diagnosis & Recommendations*:\n\n${diagnosticText}`;
-        
+      let active = true;
+      (async () => {
+        // Real diagnosis from the diagnose-plant edge function (Gemini). Needs the photo —
+        // without it there's nothing to analyze, so fall back to the generic care tips.
+        let finalDiagnosis: string;
+        try {
+          if (!params.photoUri) throw new Error('no photo');
+          const result = await diagnosePlant(params.photoUri, initNote || undefined);
+          finalDiagnosis = `🩺 *Health Diagnosis & Recommendations*:\n\n${formatDiagnosis(result)}`;
+        } catch {
+          finalDiagnosis = `🩺 *Health Diagnosis & Recommendations*:\n\n${generateDoctorResponse(
+            initNote || 'general care'
+          )}\n\n_(Live analysis was unavailable, so these are general care tips.)_`;
+        }
+        if (!active) return;
         setMessages((prev) => [
           ...prev,
           {
@@ -82,9 +94,11 @@ export default function PlantDoctor() {
           },
         ]);
         setIsTyping(false);
-      }, 1500);
+      })();
 
-      return () => clearTimeout(delay);
+      return () => {
+        active = false;
+      };
     } else {
       setMessages([
         {
@@ -96,6 +110,21 @@ export default function PlantDoctor() {
       ]);
     }
   }, [plantName, params.autoTrigger]);
+
+  // Render the edge function's structured report as a chat message.
+  const formatDiagnosis = (d: PlantDiagnosis): string => {
+    const confidence = Number.isFinite(d.confidence)
+      ? ` (${Math.round(d.confidence * 100)}% confidence)`
+      : '';
+    const steps = (d.action_plan ?? []).map((s) => `• ${s}`).join('\n');
+    return [
+      `*${d.diagnosis}*${confidence}`,
+      d.description,
+      steps && `*What to do:*\n${steps}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  };
 
   const generateDoctorResponse = (userText: string): string => {
     const text = userText.toLowerCase();

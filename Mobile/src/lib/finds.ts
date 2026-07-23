@@ -24,6 +24,16 @@ export type PlantSummary = {
   scientific_name: string | null;
 };
 
+/** The structured health report returned by the diagnose-plant edge function (Gemini). */
+export type PlantDiagnosis = {
+  /** e.g. "Spider Mites", "Overwatering Root Rot", or "Healthy". */
+  diagnosis: string;
+  /** 0.0–1.0 */
+  confidence: number;
+  description: string;
+  action_plan: string[];
+};
+
 export type MyFind = {
   id: string;
   plant_id: string | null;
@@ -124,6 +134,25 @@ export async function identifyPlant(photoUri: string): Promise<IdentifiedPlant> 
     throw new Error('Plant identification is unavailable right now. Try again.');
   }
   return data as IdentifiedPlant;
+}
+
+/**
+ * Diagnose a plant's health from a photo via the diagnose-plant edge function (Gemini).
+ * `extraInfo` is any free-text context the user recorded (e.g. their log note).
+ */
+export async function diagnosePlant(photoUri: string, extraInfo?: string): Promise<PlantDiagnosis> {
+  let image: string;
+  try {
+    image = await toDataUrl(photoUri);
+  } catch {
+    throw new Error('Could not read that photo.');
+  }
+
+  const { data, error } = await supabase.functions.invoke('diagnose-plant', {
+    body: { image, extra_info: extraInfo ?? null },
+  });
+  if (error) throw new Error('The Plant Doctor is unavailable right now. Try again.');
+  return data as PlantDiagnosis;
 }
 
 /** Upload a find photo to the plant-photos bucket and return its public URL. */
