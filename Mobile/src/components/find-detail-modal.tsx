@@ -12,7 +12,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { Alert } from '@/lib/alert';
-import { deleteFind, getFind, type FindDetail } from '@/lib/finds';
+import {
+  deleteFind,
+  getFind,
+  getFindUserStatus,
+  toggleLike,
+  type FindDetail,
+} from '@/lib/finds';
 import { supabase } from '@/lib/supabase';
 
 type Props = {
@@ -21,6 +27,8 @@ type Props = {
   onClose: () => void;
   /** Fired after a successful delete so the caller can drop it from its lists. */
   onDeleted: (findId: string) => void;
+  /** Fired after the favorite state changes so the caller can update its Favorites list. */
+  onFavoriteChanged?: (findId: string, favorited: boolean) => void;
 };
 
 function formatDate(iso: string): string {
@@ -33,14 +41,17 @@ function formatDate(iso: string): string {
 
 /**
  * Full-screen detail view for a single sighting: the photo at a size you can actually see,
- * everything recorded when it was taken, and a delete action.
+ * everything recorded when it was taken, plus favorite and delete actions.
  *
  * Works for any find the viewer is allowed to see — the Garden's Favorites and Want to Have
- * sections hold other people's finds — so delete is offered only on your own.
+ * sections hold other people's finds — so delete is offered only on your own. Favoriting is
+ * offered on every find, including other people's, which is the whole point of the list.
  */
-export function FindDetailModal({ findId, onClose, onDeleted }: Props) {
+export function FindDetailModal({ findId, onClose, onDeleted, onFavoriteChanged }: Props) {
   const [find, setFind] = useState<FindDetail | null>(null);
   const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [favorited, setFavorited] = useState(false);
+  const [favoriting, setFavoriting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,16 +63,19 @@ export function FindDetailModal({ findId, onClose, onDeleted }: Props) {
     setLoading(true);
     setError(null);
     setFind(null);
+    setFavorited(false);
 
     (async () => {
       try {
-        const [detail, userResult] = await Promise.all([
+        const [detail, userResult, status] = await Promise.all([
           getFind(findId),
           supabase.auth.getUser(),
+          getFindUserStatus(findId),
         ]);
         if (!active) return;
         setFind(detail);
         setMyUserId(userResult.data.user?.id ?? null);
+        setFavorited(status.liked);
       } catch (e) {
         if (!active) return;
         setError(e instanceof Error ? e.message : 'Could not load this sighting.');
@@ -77,6 +91,28 @@ export function FindDetailModal({ findId, onClose, onDeleted }: Props) {
 
   const name = find?.plants?.common_name ?? find?.caption ?? 'Unknown Plant';
   const isMine = find != null && myUserId != null && find.user_id === myUserId;
+
+  /**
+   * Optimistic: the heart flips immediately and rolls back if the write fails, since a
+   * round-trip on every tap makes the button feel broken on a phone.
+   */
+  const handleToggleFavorite = async () => {
+    if (!find || favoriting) return;
+
+    const next = !favorited;
+    setFavorited(next);
+    setFavoriting(true);
+    try {
+      const confirmed = await toggleLike(find.id);
+      setFavorited(confirmed);
+      onFavoriteChanged?.(find.id, confirmed);
+    } catch (e) {
+      setFavorited(!next);
+      Alert.alert('Error', e instanceof Error ? e.message : 'Could not update your favorites.');
+    } finally {
+      setFavoriting(false);
+    }
+  };
 
   const handleDelete = () => {
     if (!find) return;
@@ -138,6 +174,21 @@ export function FindDetailModal({ findId, onClose, onDeleted }: Props) {
                 />
                 <Pressable style={styles.closeButton} onPress={onClose} hitSlop={8}>
                   <Ionicons name="close" size={22} color="#FFFDF9" />
+                </Pressable>
+                <Pressable
+                  style={styles.favoriteButton}
+                  onPress={handleToggleFavorite}
+                  disabled={favoriting}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={favorited ? 'Remove from favorites' : 'Add to favorites'}
+                  accessibilityState={{ selected: favorited }}
+                >
+                  <Ionicons
+                    name={favorited ? 'heart' : 'heart-outline'}
+                    size={22}
+                    color={favorited ? '#D9637A' : '#FFFDF9'}
+                  />
                 </Pressable>
               </View>
 
@@ -262,6 +313,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(27,57,28,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  favoriteButton: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
     width: 34,
     height: 34,
     borderRadius: 17,

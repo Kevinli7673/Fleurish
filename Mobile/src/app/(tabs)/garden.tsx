@@ -197,6 +197,21 @@ export default function Garden() {
     setWantToFind((prev) => prev.filter((p) => p.id !== findId));
   };
 
+  // Opening the modal doesn't unfocus the screen, so useFocusEffect won't refetch on close.
+  // Patch the Favorites section directly instead. The card data is already on screen in one
+  // of the three sections, so favoriting never needs another round-trip.
+  const handleFavoriteChanged = (findId: string, favorited: boolean) => {
+    setFavorites((prev) => {
+      if (!favorited) return prev.filter((p) => p.id !== findId);
+      if (prev.some((p) => p.id === findId)) return prev;
+
+      const known =
+        dynamicCollection.find((p) => p.id === findId) ??
+        wantToFind.find((p) => p.id === findId);
+      return known ? [...prev, known] : prev;
+    });
+  };
+
   const filteredCollection = dynamicCollection.filter(plant => 
     plant.name.toLowerCase().includes(query.toLowerCase())
   );
@@ -307,6 +322,7 @@ export default function Garden() {
         findId={selectedFindId}
         onClose={() => setSelectedFindId(null)}
         onDeleted={handleFindDeleted}
+        onFavoriteChanged={handleFavoriteChanged}
       />
     </View>
   );
