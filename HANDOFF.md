@@ -25,7 +25,7 @@ Note that `psql -c "a; b; c"` runs all statements in **one** transaction, so a
 
 ---
 
-## 2. What the local stack proves — the previous note here was wrong
+## 2. What the local stack proves — the note that was here before was wrong
 
 `npx supabase db reset` applies all **eleven** migrations (not nine) from scratch against a
 real Postgres. That verifies syntax, ordering, and RLS logic.
@@ -171,21 +171,51 @@ unchanged policy.
 
 ---
 
-## 5. What still needs a hosted project
+## 5. Hosted verification — DONE
 
-Local verification is done. Two things remain that only hosted can answer:
+Both open questions are answered. Nothing has been applied to the live project.
 
-1. **Does hosted carry the same `supabase_admin` → `anon` write grants on
-   `spatial_ref_sys`?** The local image may simply be more permissive. This is one query:
-   `select grantor, grantee, privilege_type from information_schema.role_table_grants
-   where table_name = 'spatial_ref_sys';`
-2. **Does the `drop extension postgis cascade` + recreate succeed as the hosted `postgres`
-   role?** It works locally despite `supabase_admin` owning the extension, but this is the
-   one step worth proving before running it against real data. If hosted refuses, the
-   fallback is a Supabase support ticket, or dismissing the advisor finding — but note that
-   dismissing it leaves the write grants in place, which is the part that actually matters.
+**The vulnerability is real in production.** Queried read-only against
+`bekvvkgrpygpwqndqkjk`: `anon` and `authenticated` each hold
+DELETE/INSERT/UPDATE/TRUNCATE on `public.spatial_ref_sys`, all granted by `supabase_admin`.
+`postgres` appears only as a *grantee*, never a grantor — which is precisely why the
+original revoke could not have worked there either. Every other relevant fact matches local
+exactly: `spatial_ref_sys` in `public`, `postgres` not superuser and not a member of
+`supabase_admin`, PostGIS not relocatable, 1 public table without RLS.
 
-Do both on a free throwaway project, not on the real one.
+Also from the live project, relevant to the eventual production run: **32 finds, 0 with a
+null `lat` or `lng`**, so the `…000100` backfill will restore `location` on every row.
+
+**The fix works on hosted.** A throwaway project (`fleurish-throwaway`,
+`atqbmludxkidnigazxmf`, Kevin Org, ca-central-1) took all 11 migrations cleanly, including
+`drop extension postgis cascade` + recreate as the hosted `postgres` role. Afterwards:
+`spatial_ref_sys` in `extensions`, `anon` down to SELECT only, **0 public tables without
+RLS**, and `finds.location`, both geo functions and both triggers present.
+
+The full behavioural suite then passed on hosted — all four bypass vectors blocked, the
+genuine friend flow working, the leaderboard counting public-only, `location` generated,
+`get_nearby_finds` returning rows, and `anon`'s delete on `spatial_ref_sys` refused with
+`permission denied`.
+
+The throwaway is still up. Delete it when you no longer want it, or keep it as a safe target
+for the OAuth dashboard config in §6.
+
+### Talking to a hosted project without the DB password
+
+`supabase db push` needs the database password, but the Management API only needs the CLI
+access token, and its `/database/query` endpoint runs as `postgres` — the same role
+migrations run as, so it is a faithful substitute. `scratchpad/hosted-query.ps1` and
+`hosted-migrate.ps1` do this. Two Windows-specific traps, both hit during this session:
+
+- The CLI stores its token in Windows Credential Manager (`Supabase CLI:supabase`), not in a
+  file. The blob is UTF-8, not UTF-16 — decoding it as Unicode yields garbage.
+- `ConvertTo-Json` serialises a `Get-Content -Raw` string as `{"value": …}` because of the
+  ETS properties attached to it, which the API rejects with "Expected string, received
+  object". Use `[System.IO.File]::ReadAllText` instead.
+
+Also note the endpoint runs the entire request in one transaction, so a
+`set_config('role', …, true)` leaks into every later statement. Put `reset role;` before any
+top-level DML that follows a role-switching block.
 
 ---
 
