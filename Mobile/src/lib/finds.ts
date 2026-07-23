@@ -161,6 +161,8 @@ export async function createFind(input: {
   plant_id: string | null;
   caption?: string;
   is_public?: boolean;
+  /** Reverse-geocoded place name, e.g. "Toronto, Ontario". Shown in the find detail view. */
+  city?: string | null;
   /** When the plant was found, if the user picked a date other than now. */
   found_at?: Date | null;
 }): Promise<{ id: string }> {
@@ -171,6 +173,7 @@ export async function createFind(input: {
       lng: input.lng,
       plant_id: input.plant_id,
       caption: input.caption ?? null,
+      city: input.city ?? null,
       is_public: input.is_public ?? true,
       created_at: input.found_at ? input.found_at.toISOString() : null,
     },

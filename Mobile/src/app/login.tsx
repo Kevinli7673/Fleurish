@@ -151,7 +151,7 @@ export default function Login() {
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.primaryButtonText}>Let's go!</Text>
+              <Text style={styles.primaryButtonText}>{"Let's go!"}</Text>
             )}
           </Pressable>
 

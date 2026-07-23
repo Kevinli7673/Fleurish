@@ -170,7 +170,7 @@ export default function Signup() {
             {loading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
-              <Text style={styles.primaryButtonText}>Let's begin!</Text>
+              <Text style={styles.primaryButtonText}>{"Let's begin!"}</Text>
             )}
           </Pressable>
 

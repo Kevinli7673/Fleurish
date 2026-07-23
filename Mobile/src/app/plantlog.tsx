@@ -150,6 +150,9 @@ export default function LogPlant() {
             lng,
             plant_id: params.plantId || null,
             caption: note,
+            // The reverse-geocoded "City, Region" shown on the Log Location button.
+            // Without this the detail view's location row can never render.
+            city: location || null,
             is_public: true,
           },
         }
