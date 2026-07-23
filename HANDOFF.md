@@ -99,6 +99,11 @@ the repo. It is the only rollback path — Supabase does not generate down migra
 missing `pgdelta-target-ca.crt`. It is a post-push catalog-caching step, not the migration;
 all five applied and verified. Harmless.
 
+The `create-find` edge function (back-dating validation) was deployed the same day — now
+version 6, ACTIVE, and an unauthenticated POST correctly returns 401. The other seven
+functions were deliberately left alone. Note six of the eight run with `verify_jwt = false`,
+so their auth rests on the in-function check rather than gateway enforcement.
+
 
 | File | Purpose |
 |---|---|
