@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { Alert } from '@/lib/alert';
+import { FindDetailModal } from '@/components/find-detail-modal';
 import { getMyFinds, MyFind } from '@/lib/finds';
 import { supabase } from '@/lib/supabase';
 
@@ -121,6 +121,7 @@ export default function Garden() {
   const [favorites, setFavorites] = useState<Plant[]>([]);
   const [wantToFind, setWantToFind] = useState<Plant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedFindId, setSelectedFindId] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -184,49 +185,16 @@ export default function Garden() {
     image: find.photo_url ? { uri: find.photo_url } : require('@/assets/images/monstera.jpg'),
   }));
 
-  const handleCardPress = (sectionKey: string, plant: Plant) => {
-    if (sectionKey === 'myCollection') {
-      Alert.alert(
-        'Sighting Actions',
-        `Manage your logged plant: ${plant.name}`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete Sighting',
-            style: 'destructive',
-            onPress: () => {
-              Alert.alert(
-                'Delete Sighting',
-                `Are you sure you want to delete ${plant.name} from your collection?`,
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        const { error } = await supabase
-                          .from('finds')
-                          .delete()
-                          .eq('id', plant.id);
-                        if (error) throw error;
+  // Every section holds find ids, so one detail view serves all three. The modal decides
+  // for itself whether to offer delete, based on who owns the find.
+  const handleCardPress = (_sectionKey: string, plant: Plant) => {
+    setSelectedFindId(plant.id);
+  };
 
-                        setMyFinds(prev => prev.filter(f => f.id !== plant.id));
-                        Alert.alert('Success', 'Sighting deleted successfully.');
-                      } catch (e: any) {
-                        Alert.alert('Error', e.message || 'Could not delete sighting.');
-                      }
-                    }
-                  }
-                ]
-              );
-            }
-          }
-        ]
-      );
-    } else {
-      Alert.alert(plant.name, `This is a plant in your ${sectionKey === 'favorites' ? 'favorites list' : 'wishlist'}.`);
-    }
+  const handleFindDeleted = (findId: string) => {
+    setMyFinds((prev) => prev.filter((f) => f.id !== findId));
+    setFavorites((prev) => prev.filter((p) => p.id !== findId));
+    setWantToFind((prev) => prev.filter((p) => p.id !== findId));
   };
 
   const filteredCollection = dynamicCollection.filter(plant => 
@@ -334,6 +302,12 @@ export default function Garden() {
           </View>
         </ImageBackground>
       </ScrollView>
+
+      <FindDetailModal
+        findId={selectedFindId}
+        onClose={() => setSelectedFindId(null)}
+        onDeleted={handleFindDeleted}
+      />
     </View>
   );
 }
