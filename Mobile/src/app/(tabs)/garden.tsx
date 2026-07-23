@@ -135,12 +135,15 @@ export default function Garden() {
           const { data: { user } } = await supabase.auth.getUser();
           const userId = user?.id;
           if (userId && active) {
-            // Load Favorites from liked sightings
+            // Load Favorites from liked sightings.
+            // `likes` has no `id` column — its primary key is (user_id, find_id) — so
+            // selecting one makes PostgREST 400 and leaves this section permanently empty.
             const { data: likesData, error: likesError } = await supabase
               .from('likes')
-              .select('id, finds!inner(id, photo_url, plants(common_name))')
+              .select('find_id, finds!inner(id, photo_url, plants(common_name))')
               .eq('user_id', userId);
-            
+
+            if (likesError) console.error('Could not load favorites:', likesError);
             if (active && likesData && !likesError) {
               const mappedFavs = likesData.map((like: any) => ({
                 id: like.finds.id,
@@ -157,6 +160,7 @@ export default function Garden() {
               .eq('lists.user_id', userId)
               .eq('lists.name', 'Want to Have');
             
+            if (listItemsError) console.error('Could not load Want to Have:', listItemsError);
             if (active && listItemsData && !listItemsError) {
               const mappedWantToHave = listItemsData.map((item: any) => ({
                 id: item.finds.id,
