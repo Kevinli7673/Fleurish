@@ -8,7 +8,6 @@ import {
   Image,
   Pressable,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,6 +18,7 @@ import {
 } from '@expo-google-fonts/playfair-display';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useProfile } from '@/context/profilecontext';
+import { Alert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
 import { getProfile, type ProfileWithStats } from '@/lib/profile';
 

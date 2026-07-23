@@ -10,10 +10,10 @@ import {
   Keyboard,
   ActivityIndicator,
   Image,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
+import { Alert } from '@/lib/alert';
 import { getMyFinds, MyFind } from '@/lib/finds';
 import { supabase } from '@/lib/supabase';
 
