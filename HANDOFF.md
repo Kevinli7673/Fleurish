@@ -1,8 +1,8 @@
 # Fleurish — session handoff
 
-**Written 2026-07-22.** Kevin is restarting to install WSL2 + Docker Desktop. Everything
-below is uncommitted working-tree state on `main` at `35d8cf9`. Nothing here is pushed to
-Supabase and none of the SQL has been executed.
+**Written 2026-07-22, updated 2026-07-22 after the Docker session.** The work is committed
+on `main` at `ed72fdd` ("wip: security migrations, oauth login, web groundwork"), unpushed.
+Nothing is applied to hosted Supabase.
 
 A previous session was lost to a PC crash with no notes, so this file exists to make sure
 that can't cost anything twice. There is also a project memory at
@@ -10,34 +10,33 @@ that can't cost anything twice. There is also a project memory at
 
 ---
 
-## 1. Finish the Docker setup
+## 1. Docker setup — DONE
 
-Windows 11 Home, so Docker Desktop needs WSL2 underneath it. Neither is currently installed.
+WSL2 and Docker Desktop are installed and working (`docker info` → server 29.6.2, WSL
+default version 2). `npx supabase start` brings the stack up; the DB is reachable at
+`postgresql://postgres:postgres@127.0.0.1:54322/postgres`.
 
-```powershell
-wsl --install          # then reboot
-```
+The Supabase CLI is available via `npx supabase` (2.109.1) — no install needed.
 
-Then install Docker Desktop (it will pick up the WSL2 backend automatically) and confirm:
-
-```bash
-docker info --format '{{.ServerVersion}}'
-```
-
-The Supabase CLI is already available via `npx supabase` (2.109.1) — no install needed.
+Handy: `docker exec -i supabase_db_backend psql -U postgres -d postgres -q < script.sql`.
+Note that `psql -c "a; b; c"` runs all statements in **one** transaction, so a
+`set_config('role', …, true)` in an early statement leaks into later ones. Use separate
+`-c` invocations, or `reset role`.
 
 ---
 
-## 2. What Docker is for, and what it will *not* prove
+## 2. What the local stack proves — the previous note here was wrong
 
-With a local stack, `npx supabase db reset` applies all nine migrations from scratch against
-a real Postgres. That verifies syntax, ordering, and RLS logic.
+`npx supabase db reset` applies all **eleven** migrations (not nine) from scratch against a
+real Postgres. That verifies syntax, ordering, and RLS logic.
 
-**It will not reproduce the bug that started this.** The crashed session's original
-`spatial_ref_sys` migration applies cleanly locally, because the migrating role owns the
-table there. It only degrades to a silent no-op on hosted Supabase, where `supabase_admin`
-owns it. Anything turning on table ownership or role grants has to be checked against a
-hosted project — a free throwaway project is the way to do that.
+**The earlier claim that it can't reproduce the `spatial_ref_sys` bug was backwards.**
+The premise was that the migrating role owns the table locally. It does not: locally
+`spatial_ref_sys` is owned by `supabase_admin`, exactly as on hosted, and `postgres` is not
+superuser (`rolsuper = f`). The silent no-op reproduces locally and was caught locally.
+
+So the local stack is a faithful check for this class of problem. A throwaway hosted project
+is still worth doing before shipping, but for confirmation rather than discovery — see §5.
 
 ---
 
@@ -85,15 +84,44 @@ The plan was three parts: **fix bugs → edit login → set up for Vercel.**
 
 ---
 
-## 4. Pending migrations — none pushed
+## 4. Pending migrations — none pushed, all now executed locally
 
 | File | Purpose |
 |---|---|
-| `20260722000100_secure_spatial_ref_sys.sql` | Revokes anon/authenticated write on PostGIS reference data |
+| `20260722000100_secure_spatial_ref_sys.sql` | **Rewritten.** Moves PostGIS to the `extensions` schema — the revoke it used to do was a silent no-op |
 | `20260722000200_tighten_plant_photos.sql` | Scopes bucket uploads to the caller's own folder |
 | `20260722000300_tighten_feed_events.sql` | Feed events readable by owner/friends only |
 | `20260722000400_fix_friendship_consent.sql` | Closes the private-data bypass (below) |
 | `20260722000500_leaderboard_respects_privacy.sql` | Stops `get_leaderboard` counting private finds |
+
+### `…000100` was ineffective and has been rewritten
+
+As originally written it revoked `insert, update, delete on public.spatial_ref_sys from
+anon, authenticated`. That applied without error and **changed nothing** — after a full
+reset, `anon` still held DELETE and could actually delete SRID 4326.
+
+The cause is grantor identity, not ownership. Those privileges were granted *by*
+`supabase_admin`, and a `revoke` only removes grants issued by roles the current role
+belongs to. Migrations run as `postgres`, which is not a member of `supabase_admin`
+(`set role supabase_admin` → permission denied) and is not superuser. So the revoke matched
+nothing. Enabling RLS fails for the same reason.
+
+The earlier note also mis-attributed the grants to `20260711155057_grant_table_privileges`.
+That migration's blanket grant never took on this table — it is the source of the "no
+privileges were granted" warnings in the reset log. The write grants come from the Supabase
+image itself.
+
+The fix that does work: get the table out of the PostgREST-exposed schema. PostGIS is not
+relocatable (`alter extension postgis set schema extensions` → "does not support SET
+SCHEMA"), so it is a `drop extension … cascade` + `create extension postgis with schema
+extensions`. `postgres` is permitted to do this even though `supabase_admin` owns the
+extension. Result: `anon` goes from full write to `SELECT` only, and **`public` is left with
+zero tables lacking RLS**, so the advisor badge clears as a side effect.
+
+The only casualty is `finds.location`, which cascade-drops. It is derived data — the
+migration re-adds the column, recreates `generate_find_location()` and `get_nearby_finds()`
+with `search_path = public, extensions` so their PostGIS calls still resolve, and backfills
+from the `lat`/`lng` columns.
 
 ### The one that matters most
 
@@ -116,51 +144,58 @@ are frozen by a `before update` trigger.
 Note `…000300` (feed events) depends on this — it gates reads on friendship status, which
 was forgeable until `…000400`.
 
-### Verified only by reading
+### Verified by execution
 
-The SQL has not been executed. What *was* checked is that the tightened policies don't break
-the real flows:
-- `send-friend-request` inserts with an explicit `status: "pending"` → passes the new check.
-- `respond-friend-request` accepts as `friend_id` and doesn't touch the identity columns →
-  passes both the policy and the trigger.
-- Declining is a DELETE under an unchanged policy.
+All eleven migrations apply cleanly from scratch. The bypass was reproduced against the real
+pre-fix schema first (the five new migrations moved aside, `db reset`, run the script), then
+the identical script was re-run against the fixed schema:
+
+| Test | Pre-fix | Fixed |
+|---|---|---|
+| insert `(attacker, victim, 'accepted')` | bypass | rejected by RLS |
+| read victim's private finds | bypass — returned the home coordinates | 0 rows |
+| initiator flips own pending → accepted | bypass | rejected by RLS |
+| rewrite parties to a stranger, then accept | bypass | rejected by the trigger |
+| read the stranger's private finds | bypass | 0 rows |
+| genuine send → addressee accepts → friend reads | works | works |
+| `get_leaderboard` count for victim | 2 (private leaked) | 1 public; own total still 2 |
+
+Also confirmed on the fixed schema: a stranger reads 0 streak-milestone `feed_events`; all 8
+storage policies present; the `location` trigger and `get_nearby_finds` still work after the
+PostGIS move; the `…000100` backfill repopulates `location`.
+
+The edge functions line up with the tightened policies, as previously reasoned:
+`send-friend-request` inserts an explicit `status: "pending"`; `respond-friend-request`
+accepts as `friend_id` without touching the identity columns; declining is a DELETE under an
+unchanged policy.
 
 ---
 
-## 5. Test plan once Docker is up
+## 5. What still needs a hosted project
 
-```bash
-cd backend
-npx supabase start
-npx supabase db reset      # applies all 9 migrations from scratch
-```
+Local verification is done. Two things remain that only hosted can answer:
 
-Then, with two test accounts and the local anon key:
+1. **Does hosted carry the same `supabase_admin` → `anon` write grants on
+   `spatial_ref_sys`?** The local image may simply be more permissive. This is one query:
+   `select grantor, grantee, privilege_type from information_schema.role_table_grants
+   where table_name = 'spatial_ref_sys';`
+2. **Does the `drop extension postgis cascade` + recreate succeed as the hosted `postgres`
+   role?** It works locally despite `supabase_admin` owning the extension, but this is the
+   one step worth proving before running it against real data. If hosted refuses, the
+   fallback is a Supabase support ticket, or dismissing the advisor finding — but note that
+   dismissing it leaves the write grants in place, which is the part that actually matters.
 
-1. **Reproduce the bypass against the pre-fix schema** — insert
-   `(attacker, victim, 'accepted')` directly, then read victim's `is_public = false` finds.
-   Confirm it succeeds, so we know the test is actually exercising the hole.
-2. **Re-run against the fixed schema** — confirm the insert is rejected, the self-accept
-   update is rejected, and the identity-rewrite variant raises from the trigger.
-3. **Confirm the genuine flow still works** — send request, accept as the addressee, verify
-   friend-visible reads work and the trigger doesn't fire.
-4. **`get_leaderboard`** — confirm a private find no longer shows in another user's count
-   but still shows in your own.
-
-Then repeat 2–4 against a throwaway hosted project, since `…000100` (grants) and the
-`spatial_ref_sys` ownership behavior can only be verified there.
+Do both on a free throwaway project, not on the real one.
 
 ---
 
 ## 6. Known gotchas
 
-- **The Security Advisor badge stays red** even after all five migrations. The lint checks
-  whether RLS is *enabled*, not whether the grants are safe, and RLS cannot be enabled on
-  `spatial_ref_sys` (owned by `supabase_admin`). Clearing it means moving PostGIS out of the
-  `public` schema, which PostGIS does not support relocating — it needs a
-  `drop extension … cascade` + recreate (drops `finds.location`, the trigger, and
-  `get_nearby_finds`; `location` is regenerable from the `lat`/`lng` columns), or a Supabase
-  support ticket. Or dismiss the finding, which is defensible once writes are revoked.
+- **The Security Advisor badge should now clear**, since the rewritten `…000100` leaves zero
+  tables in `public` without RLS (verified locally). The earlier note here had the shape of
+  the fix right — drop/recreate rather than relocate — but assumed it was optional polish on
+  top of a working revoke. It isn't: the drop/recreate *is* the fix, because the revoke does
+  nothing. Dismissing the finding is no longer a defensible alternative for the same reason.
 - **OAuth needs dashboard config before it works**: enable Google and Discord, add client
   ID/secret, allow-list `fleurish://**` and the eventual Vercel URL. `config.toml` has local
   dev blocks reading `SUPABASE_AUTH_EXTERNAL_*` env vars, so no secrets are committed.
@@ -176,36 +211,38 @@ Then repeat 2–4 against a throwaway hosted project, since `…000100` (grants)
 
 ---
 
-## 7. Uncommitted files
+## 7. Git state
 
-```
- M Mobile/package-lock.json
- M Mobile/package.json
- M Mobile/src/app/(tabs)/friends.tsx
- M Mobile/src/app/(tabs)/garden.tsx
- M Mobile/src/app/(tabs)/profile.tsx
- M Mobile/src/app/login.tsx
- M Mobile/src/app/plantlog.tsx
- M Mobile/src/app/signup.tsx
- M Mobile/src/lib/finds.ts
- D Mobile/src/lib/likes.ts
- M Mobile/src/lib/supabase.ts
- M backend/supabase/config.toml
- M backend/supabase/functions/create-find/index.ts
-?? Mobile/eslint.config.js
-?? Mobile/src/lib/auth.ts
-?? backend/supabase/migrations/20260722000100_secure_spatial_ref_sys.sql
-?? backend/supabase/migrations/20260722000200_tighten_plant_photos.sql
-?? backend/supabase/migrations/20260722000300_tighten_feed_events.sql
-?? backend/supabase/migrations/20260722000400_fix_friendship_consent.sql
-?? backend/supabase/migrations/20260722000500_leaderboard_respects_privacy.sql
-```
+All of the work described above is committed on `main` at `ed72fdd` ("wip: security
+migrations, oauth login, web groundwork") — 18 files, unpushed. The safety-net commit was
+made before the reboot.
 
-Nothing is committed. If you want a safety net before rebooting:
-
-```bash
-git add -A && git commit -m "wip: security migrations, oauth login, web groundwork"
-```
+Uncommitted on top of that: the `…000100` rewrite described in §4.
 
 `tsc --noEmit` passes (except the pre-existing `animated-icon.web.tsx` error) and ESLint
 reports nothing new from these changes.
+
+---
+
+## 8. Reproducing the security tests
+
+The RLS test script lives outside the repo, in the session scratchpad:
+
+```
+…/scratchpad/friendship_attack_test.sql
+```
+
+It sets up three users (attacker / victim / stranger) plus private and public finds, then
+runs the seven checks tabulated in §4 as `raise notice` PASS/FAIL lines. It is idempotent —
+it deletes `%@rlstest.local` users on entry — and safe to re-run after any `db reset`.
+
+To rebuild the pre-fix baseline it was validated against:
+
+```bash
+mv supabase/migrations/2026072200*.sql /somewhere/else/
+npx supabase db reset      # original schema, expect BYPASS lines
+mv /somewhere/else/*.sql supabase/migrations/
+npx supabase db reset      # fixed schema, expect BLOCKED lines
+```
+
+Worth moving into the repo if these checks should survive the session.
