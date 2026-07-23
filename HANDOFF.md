@@ -711,3 +711,47 @@ template literal. `garden.tsx`'s `forwardRef` got an explicit `displayName`.
 ### Verification
 
 `tsc --noEmit` exit 0 · `expo lint` 0 errors · web export exit 0, 23/23 routes.
+
+---
+
+## 18. Plant Doctor wired to real Gemini — DONE 2026-07-23 (code); needs a key check
+
+Kevin's recollection that "the gemini api wasn't connected properly" was right, but sharper than
+that: **the app never called Gemini at all.** The `diagnose-plant` edge function (Gemini 2.5
+Flash) is well-formed and deployed — probing it returns `401 "No authorization header provided"`,
+its own in-function auth check running — but **nothing in the app invoked it.** `plantdoctor.tsx`
+did not even import `supabase`; the "AI Plant Doctor" was `generateDoctorResponse`, four
+`text.includes()` keyword branches returning hardcoded paragraphs behind a `setTimeout(…, 1500)`
+fake typing delay. The greeting "I am reviewing your log data to diagnose its health" was untrue.
+
+### What was done (scope: option 1, auto-diagnosis only)
+
+- `lib/finds.ts` gained `diagnosePlant(photoUri, extraInfo?)` and a `PlantDiagnosis` type. It
+  reuses the existing `toDataUrl` (resize ≤1024px → base64 data URL) so the payload matches what
+  `identify-plant` already sends.
+- `plantdoctor.tsx` auto-trigger path now calls it with the log note as `extra_info`, formats the
+  structured `{diagnosis, confidence, description, action_plan[]}` into the chat bubble, and falls
+  back to the old generic tips **labelled as such** if the photo is missing or the call fails.
+- Registered `diagnose-plant` in `config.toml` — it was the only function with no `[functions.*]`
+  block (deployed anyway, but unregistered and inconsistent).
+
+### Deliberately NOT done
+
+**Manual follow-up chat is still canned.** `diagnose-plant` is one-shot and accepts no
+conversation history, so the text input's replies still come from `generateDoctorResponse`. Making
+the doctor genuinely conversational needs a different/new edge function — a separate decision, per
+the chosen scope. The subtitle still reads "AI Diagnostic Chat," which now overstates the manual
+path.
+
+### Runtime unknown — check before trusting it
+
+`GEMINI_API_KEY` in Supabase secrets was **not** verifiable from here (triggering the missing-key
+500 needs a real user JWT). If it is unset, the auto-diagnosis will fail and silently show the
+generic-tips fallback — which looks like success. Confirm the secret exists, then test on device:
+capture → identify → log → the Plant Doctor's first diagnosis should reflect the actual photo, not
+boilerplate. Code-only change; `diagnose-plant` itself was already deployed and needs no redeploy.
+
+### Verification
+
+`tsc --noEmit` exit 0 · `expo lint` 0 errors (1 pre-existing exhaustive-deps warning) · web export
+exit 0, 23/23 routes · `diagnose-plant` call confirmed present in the export bundle.
