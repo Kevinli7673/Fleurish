@@ -1,8 +1,24 @@
 # Fleurish — session handoff
 
-**Written 2026-07-22, updated 2026-07-22 after the Docker session.** The work is committed
-on `main` at `ed72fdd` ("wip: security migrations, oauth login, web groundwork"), unpushed.
-Nothing is applied to hosted Supabase.
+**Written 2026-07-22. Body below is the 07-22 snapshot; see the CURRENT STATUS banner for
+what changed since.**
+
+> ## ⚠️ CURRENT STATUS — 2026-07-24 (read this first; the dated body below is stale)
+> - **Hosted Supabase is FULLY MIGRATED.** All 12 migrations (the 5 security fixes +
+>   `20260723000100_cascade_feed_events_on_find_delete`) show a populated `remote` column in
+>   `supabase migration list`; `db push` says "Remote database is up to date." The body's
+>   "Nothing is applied to hosted" is **FALSE and dangerous** — do NOT re-run migrations
+>   (esp. the `drop extension postgis cascade` in `…000100`) against prod.
+> - **Vercel is DONE and DEPLOYED** at `fleurish-six.vercel.app` (§3 "Not started" is stale).
+>   `Mobile/vercel.json` committed; Root Directory = `Mobile`, Preset = Other; the two
+>   `EXPO_PUBLIC_SUPABASE_*` vars set in Vercel; Git integration auto-deploys `main`.
+> - **`main` is PUSHED** (latest `0832272`); the "unpushed" lines in §7 are stale.
+> - **SDK is pinned to 54 on purpose** — the §3 "54 → 57 upgrade should land" note is
+>   reversed; do NOT upgrade (see `Mobile/AGENTS.md`).
+> - **DB password:** root `.env.local` `SUPABASE_DB_PASSWORD` works (its other values are
+>   placeholders). CLI doesn't auto-read it — export it first.
+> - **Biggest remaining item:** OAuth dashboard config (Google/Discord still disabled on the
+>   live project; also set Site URL + redirect allow-list to the Vercel URL).
 
 A previous session was lost to a PC crash with no notes, so this file exists to make sure
 that can't cost anything twice. There is also a project memory at
@@ -72,38 +88,16 @@ The plan was three parts: **fix bugs → edit login → set up for Vercel.**
 - Fixed the `getSession()` console warning ("could be insecure") in four screens by
   switching to `getUser()`.
 
-### Not started
+### Not started (07-22 snapshot — SUPERSEDED, see CURRENT STATUS banner)
 
-- **Vercel.** No `vercel.json`, no `.vercel/`, no web build script. `app.json` already has
-  `web.output: "static"`.
-- **Expo SDK 54 → 57 upgrade is half-applied.** Only `expo` and its four direct deps are on
-  57.x; ~25 packages including `react-native` (0.81.5 → 0.86.0) and `react`
-  (19.1.0 → 19.2.3) are still on SDK 54. Run `npx expo install --check` to list them.
-  This should land before attempting a web export.
-  `Mobile/AGENTS.md` requires reading https://docs.expo.dev/versions/v57.0.0/ first.
+- ~~**Vercel.**~~ DONE 2026-07-24 — deployed at `fleurish-six.vercel.app`. See banner.
+- ~~**Expo SDK 54 → 57 upgrade is half-applied.**~~ REVERSED — the project is now
+  deliberately pinned to SDK 54 (`Mobile/AGENTS.md`); do NOT upgrade. Read the v54 docs,
+  not v57.
 
 ---
 
-## 4. Migrations — PUSHED TO PRODUCTION 2026-07-22
-
-All five are live on `bekvvkgrpygpwqndqkjk`. Verified after the push: `spatial_ref_sys` in
-`extensions`, `anon` down to SELECT only, **0 public tables without RLS**, 32/32 finds
-backfilled with `location`, both triggers present, a forged `accepted` friendship rejected
-by RLS, and `anon`'s delete on `spatial_ref_sys` denied. Friendship rows still 6 — no test
-data was written to production.
-
-A pre-push backup (schema + data + roles) is in `C:\Users\kevin\Fleurish-backups\`, outside
-the repo. It is the only rollback path — Supabase does not generate down migrations.
-
-`db push` ends with a `pg-delta` "failed to cache migrations catalog" warning about a
-missing `pgdelta-target-ca.crt`. It is a post-push catalog-caching step, not the migration;
-all five applied and verified. Harmless.
-
-The `create-find` edge function (back-dating validation) was deployed the same day — now
-version 6, ACTIVE, and an unauthenticated POST correctly returns 401. The other seven
-functions were deliberately left alone. Note six of the eight run with `verify_jwt = false`,
-so their auth rests on the in-function check rather than gateway enforcement.
-
+## 4. Pending migrations — none pushed, all now executed locally
 
 | File | Purpose |
 |---|---|
@@ -255,24 +249,25 @@ top-level DML that follows a role-switching block.
 - `Mobile/eslint.config.js` and the `eslint` / `eslint-config-expo` devDependencies were
   added as a side effect of running `npm run lint` for the first time. Harmless, but they're
   riding along in this diff — revert if unwanted.
-- ~~Pre-existing `tsc` error in `Mobile/src/components/animated-icon.web.tsx` (missing CSS
-  module types).~~ **Resolved** by the SDK 57 upgrade (§9) — the file still exists, but
-  `tsc --noEmit` is now clean across the whole project.
+- Pre-existing `tsc` error in `Mobile/src/components/animated-icon.web.tsx` (missing CSS
+  module types). Expo template leftover from the initial commit, unrelated to this work.
 
 ---
 
 ## 7. Git state
 
-The migration work is committed on `main`, which now ends at `eef93c8` ("docs: record
-create-find deploy in handoff"). Unpushed.
+**Stale (07-22).** As of 2026-07-24, `main` is PUSHED to `origin` — latest `0832272`
+("fix: allow deleting your own sighting, plus favorites/date fixes"), on top of `8c7f8e0`
+(the Vercel config). Working tree clean. The 07-22 text below is kept for history.
 
-The SDK 57 and web work of §9, and the Garden modal of §10, are on branch
-**`fix/expo-sdk-57-and-web`** — branched rather than committed to `main` because it is a
-large multi-part change. Fast-forward with
-`git checkout main && git merge fix/expo-sdk-57-and-web` if that is not wanted. Nothing is
-pushed; `main` was already unpushed before this work.
+All of the work described above is committed on `main` at `ed72fdd` ("wip: security
+migrations, oauth login, web groundwork") — 18 files, unpushed. The safety-net commit was
+made before the reboot.
 
-`tsc --noEmit` now passes with no exceptions.
+Uncommitted on top of that: the `…000100` rewrite described in §4.
+
+`tsc --noEmit` passes (except the pre-existing `animated-icon.web.tsx` error) and ESLint
+reports nothing new from these changes.
 
 ---
 
@@ -298,460 +293,3 @@ npx supabase db reset      # fixed schema, expect BLOCKED lines
 ```
 
 Worth moving into the repo if these checks should survive the session.
-
----
-
-## 9. SDK 57 alignment and web support — DONE 2026-07-22
-
-Three commits on `fix/expo-sdk-57-and-web`, branched from `main` at `eef93c8`.
-
-### What was broken
-
-`npx expo start` crashed before Metro came up with
-`Cannot find module 'expo-router/internal/routing'`. The SDK 54 → 57 upgrade flagged in §3
-was half-applied: `@expo/cli` 57 loads `@expo/router-server`, which imports a subpath that
-exists only in `expo-router` 57, while the project pinned `expo-router` at 6.0.24.
-
-Note that reverting was **not** an escape hatch — the old `package.json` already had
-`"expo": "^57.0.7"`, and that caret is what resolved the CLI to 57 in the first place. The
-pre-upgrade tree was unrunnable.
-
-### The upgrade
-
-`npx expo install --fix` (two passes) moved all 32 stale packages: `react-native`
-0.81.5 → 0.86.0, `react` 19.1.0 → 19.2.3, `typescript` 5.9 → 6.0.3, every `expo-*` module
-renumbered onto the SDK version, `@expo/ui` beta → 57.0.7 stable. It also added the
-`expo-font`, `expo-image`, `expo-status-bar` and `expo-web-browser` config plugins to
-`app.json`.
-
-One RN 0.86 removal hit real code: `StyleSheet.absoluteFillObject` is gone from the runtime,
-not merely deprecated. `absoluteFill` was previously a registered style ID (a number, hence
-unspreadable) — in 0.86 it *is* the plain object, so `...StyleSheet.absoluteFill` is the
-correct replacement.
-
-### Three pre-existing defects, surfaced by running on web
-
-1. **Static rendering executes the app in Node**, where `window` is absent. The Supabase
-   client is built at module scope and immediately calls `storage.getItem`; AsyncStorage's
-   web build touches `window`. `Platform.OS` is `'web'` during server rendering too, so it
-   cannot tell browser from server — `lib/supabase.ts` now checks for `window` directly.
-2. **`Alert.alert` did nothing on web.** react-native-web ships `class Alert { static
-   alert() {} }` — literally empty. All 24 call sites across five screens were dead, so
-   delete confirmations never appeared and `catch` blocks reporting failures only through
-   `Alert` swallowed them. `lib/alert.ts` is a drop-in shim: call sites unchanged, only the
-   import moves.
-3. **A whitespace text node in `login.tsx`** between a `Pressable`'s opening tag and its
-   `Text` child, on one line. JSX only strips whitespace at line boundaries.
-
-### Forgot-password flow — implemented, not yet end-to-end tested
-
-The screen was UI only: the button had no `onPress`, the email state was never read, and
-`resetPasswordForEmail` appeared nowhere in the codebase. There was no landing route either.
-Added `sendPasswordReset` / `updatePassword` to `lib/auth.ts`, wired the button, and added a
-`reset-password` route.
-
-`_layout.tsx` needed an exemption: a recovery link **signs the user in**, so the existing
-"session on an auth screen → redirect to `(tabs)`" rule would have bounced them into the app
-before they could choose a password.
-
-Still required before it works: SMTP on the project, and `http://localhost:8081/reset-password`
-plus the eventual Vercel URL allow-listed. **Native is not wired** — there is no `Linking`
-listener anywhere in the app, so the emailed link will not reopen it on iOS/Android.
-
-### Environment — the thing that cost the most time
-
-`Mobile/.env.local` had been **empty and in the wrong directory** (repo root) since 21:33.
-There is no root JS project — only `backend/` and `Mobile/` — so a root `.env.local` is
-silently ignored. Expo loads `.env*` from the project root, which is `Mobile/`.
-
-Only two vars are needed: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
-The project's anon key is the **new** Supabase format (`sb_publishable_…`), not a legacy
-`eyJ…` JWT. Restart with `--clear` after changing it — Expo inlines `EXPO_PUBLIC_*` at
-bundle time.
-
-When smoke-testing credentials, query a table. `/rest/v1/` root returns 401 for anon on this
-project because the security migrations revoked schema introspection; that is expected and
-not a misconfiguration.
-
-### Verification
-
-`expo install --check` clean · `tsc --noEmit` exit 0 · web export 23/23 routes exit 0 ·
-android bundle exit 0. Not verified: any of it running on a real device, and `@expo/ui`
-behaviour after the beta → stable jump.
-
-### Outstanding
-
-- **Google and Discord are not enabled on the live project.** Confirmed by querying
-  `/auth/v1/settings` on `bekvvkgrpygpwqndqkjk`: only `email` is on. §3 recorded login as
-  done, which was true of the code but never of the project. The button fails with
-  `"Unsupported provider: provider is not enabled"`. Dashboard work, not code.
-- 44 RN 0.86 style deprecations (`shadow*` → `boxShadow` ×36, `textShadow*` ×3,
-  `pointerEvents` prop ×5). Warnings only; deliberately left for a separate pass.
-- `expo lint` reports 47 problems (26 errors), mostly `react-hooks/set-state-in-effect` from
-  the stricter eslint-config-expo 57 rules. Surfaced by the upgrade, not caused by it.
-- Expo Go on the phone is still SDK-mismatched; SDK 57 needs Expo Go **57.0.5** (iOS) /
-  **57.0.2** (Android). Web and the Android APK are the unblocked paths.
-- `backend/nul` (23 KB pg_dump) and the empty root `.env.local` are stray files from a
-  botched shell redirect. Untracked; safe to delete.
-
----
-
-## 10. Garden detail modal — DONE 2026-07-23
-
-Tapping a plant in the Garden used to fire an `Alert` offering only Cancel/Delete (and for
-the other two sections, a dead-end "This is a plant in your favorites list"). It now opens
-`Mobile/src/components/find-detail-modal.tsx`: the photo at full modal width instead of
-96×96, everything recorded at capture time, and a delete action.
-
-### Design decisions
-
-- **A modal, not a route.** Keeps scroll position and the already-loaded garden state, so
-  dismissing costs no refetch.
-- **One modal serves all three sections.** Favorites and Want to Have store find ids too
-  (`like.finds.id`, `item.finds.id`), so they all open the same view.
-- **Delete only on your own finds.** The other two sections hold *other people's* finds, so
-  the modal compares `find.user_id` against `auth.getUser()` and hides the button otherwise.
-  RLS would reject it anyway — this avoids offering a button that can only fail.
-- The list query stays lean. `getMyFinds` still selects only what the cards need; the modal
-  calls the existing `getFind(id)` on open, which is where `city`, `care_tips`,
-  `light_requirement` and `water_requirement` come from.
-- Deleting removes the id from all three lists, since one find can appear in more than one.
-- The delete confirmation only works because of the `Alert` shim from §9. Before that it
-  would have silently done nothing on web.
-
-### Found while wiring it up: `finds.city` is never written
-
-The modal renders a location row, but it will not appear, because nothing populates the
-column. In `plantlog.tsx:206` the location text the user sees being captured is forwarded as
-a **navigation param** to `/plantdoctor` and nowhere else. `createFind` has no `city` field,
-and the `create-find` edge function does not derive one. Only `lat`/`lng` reach the database.
-
-The data to backfill it exists. The row is left in place, rendered conditionally, so it
-lights up as soon as that is fixed. Not fixed here — separate bug, separate decision.
-
-### Verification
-
-`tsc --noEmit` exit 0 · web export 23/23 routes exit 0 · android bundle exit 0.
-**Not runtime-tested** — nothing in §9 or §10 has been exercised on a real device or in a
-browser by hand beyond the login screen.
-
----
-
-## 11. Picking up tomorrow
-
-Ordered by what unblocks the most.
-
-1. **Run the app and click through it.** Everything in §9 and §10 is verified by compiler and
-   bundler only. Start with the Garden modal (open, delete, the Favorites variant with no
-   delete button) and the login screen. **This is now unblocked on the iPhone** — the SDK 54
-   downgrade of §13 means the existing App Store Expo Go will connect. `npx expo start` in
-   `Mobile/`, scan the QR. Note OAuth still will not work in Expo Go (§6).
-2. **Dashboard config** — nothing in code can proceed past this. Enable Google + Discord
-   (§9), configure SMTP for the reset flow, and allow-list the redirect URLs:
-   `http://localhost:8081/reset-password`, `fleurish://reset-password`, and the Vercel domain
-   when it exists.
-3. **Vercel.** The web export works now, which was the blocker. Still no `vercel.json`, no
-   `.vercel/`, no web build script.
-4. **Native deep-linking** for the password reset link — there is no `Linking` listener
-   anywhere in the app, so the emailed link cannot reopen it on iOS/Android. Roughly 15 lines
-   in `_layout.tsx`.
-5. ~~**Expo Go**, if a phone is wanted~~ — **RESOLVED 2026-07-23, see §12.** The answer was
-   neither a device-support wall nor a stale cache: Expo Go for SDK 57 was never published to
-   the App Store. Android has a sideloadable APK; iOS has no free path from Windows.
-6. Optional cleanups: the 44 style deprecations, the 26 lint errors, `finds.city`,
-   `backend/nul`, the empty root `.env.local`.
-
----
-
-## 12. The Expo Go dead end — RESOLVED 2026-07-23
-
-**Stop trying to update Expo Go on the iPhone. The build does not exist.**
-
-§11.5 framed this as "device-support wall or stale cache." It is neither. Expo Go for
-SDK 57 was never approved to the App Store — Expo's own SDK 57 changelog says *"We'd like to
-release a new version for SDK 57, but we're still waiting on approval."* The same thing
-happened to SDK 55 in May 2026, which sat unapproved with no timeline given. The "57.0.5 (iOS)"
-version number in the old §9/§11 notes was wrong; no such iOS build was ever published.
-
-For the record, SDK 57's actual floor is **iOS 16.4+ / Android 7+** (Xcode 26.4+). That was
-the "device-support wall" hypothesis and it is not what is biting — the wall is Apple review.
-
-### The toolchain is fine — verified 2026-07-23
-
-Re-confirmed before diagnosing, so this is not the cause: `expo install --check` → up to date;
-Metro serving on 8081; all three platforms bundle 200 (web 3.9 MB, android 6.1 MB, ios 5.5 MB).
-Nothing in §9 regressed.
-
-### Paths to a running app
-
-| Path | Status |
-|---|---|
-| Android APK | **Works today.** Expo Go 57.0.2, sideload, bypasses the Play Store |
-| Web | Works today |
-| iPhone + Expo Go | Not obtainable — not in the App Store |
-| iPhone via `eas go` / dev build | Needs a **paid Apple Developer account** for signing |
-| iOS Simulator | macOS only; this is a Windows 11 machine |
-
-Android APK (verified live, HTTP 200):
-`https://github.com/expo/expo-go-releases/releases/download/Expo-Go-57.0.2/Expo-Go-57.0.2.apk`
-
-**On a Windows machine with no Apple Developer account, there is no path to an iPhone at all.**
-That is a hard blocker, not a code problem. Android and web are the only real targets.
-
-### Why Expo Go may be the wrong goal regardless
-
-Per §6, **OAuth does not work in Expo Go** — `Linking.createURL` redirects are undefined there.
-So Google/Discord login and the §9 password-reset deep link, two of the main things §11.1 wants
-clicked through, will not work even after Expo Go is installed. Expo now positions Expo Go as
-"first and foremost an educational tool to help beginners," not a dev environment.
-
-A **development build** is the path where OAuth and deep links actually function. Nothing is set
-up for it yet: no `eas.json`, no `extra.eas.projectId` in `app.json`, `eas-cli` not installed.
-Android dev builds need only a free Expo account (EAS servers or local); iOS device builds need
-the paid Apple account.
-
----
-
-## 13. Downgraded to SDK 54 — DONE 2026-07-23
-
-**Decision: the project is deliberately pinned to SDK 54. Do not upgrade it.**
-
-SDK 54 is the newest Expo Go build Apple ever approved, so it is the newest SDK that runs on a
-physical iPhone without a $99/yr Apple Developer account. §12 is the reasoning. `Mobile/AGENTS.md`
-now says this too, and points at the v54 docs rather than v57.
-
-This was Kevin's recall — "a previous version of expo worked for us" — and it was exactly right.
-Git confirms SDK 54 was coherent across five commits through `c719479` (2026-07-11):
-`expo ~54.0.0`, `expo-router ~6.0.24`, RN 0.81.5, react 19.1.0. Commit `ed72fdd` (07-22) then
-bumped **only** `expo` to `^57.0.7` and left the other 31 packages on 54 — that is the origin of
-the half-applied upgrade, and of the `expo-router/internal/routing` crash in §9.
-
-### What changed
-
-Branch `chore/downgrade-sdk-54`, off `fix/expo-sdk-57-and-web` at `5a4576d`.
-
-- `package.json` — 32 pinned versions restored to their SDK 54 values (RN 0.86.0 → 0.81.5,
-  react 19.2.3 → 19.1.0, TS 6.0.3 → 5.9.2, every `expo-*` renumbered, `@expo/ui` 57.0.7 →
-  `~0.2.0-beta.9`). `eslint-config-expo` 57.0.0 → `~10.0.0` to match the era; `eslint` kept.
-- `animated-icon.tsx:142` — `...StyleSheet.absoluteFill` → `...absoluteFillObject`. **The only
-  SDK-sensitive line in the whole app.** On RN 0.81 `absoluteFill` is a registered style ID (a
-  number), so spreading it silently yields nothing. The other 16 `absoluteFill` uses pass it as a
-  style *value*, which is correct on both versions and needed no change.
-- `app.json` — dropped the four config plugins `expo install --fix` had added (`expo-font`,
-  `expo-image`, `expo-status-bar`, `expo-web-browser`); not required at 54.
-
-### What survived untouched
-
-All of §9 and §10 is plain JS/React and is SDK-agnostic: the `lib/alert.ts` shim, the
-`lib/supabase.ts` `window` check, the `login.tsx` JSX whitespace fix, the forgot-password flow
-(`lib/auth.ts`, `reset-password.tsx`, the `_layout.tsx` exemption), OAuth in `lib/auth.ts`, and
-the whole Garden detail modal. Nothing was reverted to get back to 54.
-
-### Verification — all re-run on the 54 tree
-
-`npx expo --version` → **54.0.26** (the CLI now resolves to 54, which is what makes the §9 crash
-impossible) · `expo install --check` → up to date · `tsc --noEmit` exit 0 · Metro starts clean,
-no `expo-router/internal/routing` · bundles 200 on all three platforms (ios 6.27 MB, android
-6.27 MB, web 3.65 MB) · `expo export --platform web` exit 0, **23/23 routes**, same as 57.
-
-Manifest serves `runtimeVersion: "exposdk:54.0.0"` — the exact handshake the App Store's Expo Go
-accepts, so the phone will connect.
-
-**The feared TypeScript regression did not happen.** §6 credited the 57 upgrade with fixing the
-`animated-icon.web.tsx` CSS-module error; `tsc` is clean on TS 5.9 too, so that fix was not
-version-dependent.
-
-### Still true after the downgrade
-
-- **OAuth remains untestable in Expo Go** (§6) — `Linking.createURL` redirects are undefined
-  there on any SDK. Downgrading buys a phone, not a login test. Only a dev build buys that.
-- The 44 RN style deprecations of §9 were never applied, so nothing to undo there.
-
----
-
-## 14. Favorite from the detail modal — DONE 2026-07-23, RUNTIME-VERIFIED
-
-The Garden detail modal (§10) offered delete but no way to favorite. Added a heart overlaid on
-the photo at top-left, mirroring the existing close button at top-right. Commit `3c1b8be`.
-
-**This is the first thing in this whole body of work confirmed on a real phone**, on SDK 54 via
-Expo Go. Kevin tapped it and the favorite persisted. Everything else in §9, §10 and §13 is still
-compiler-and-bundler verified only.
-
-- No new data layer: `getFindUserStatus` and `toggleLike` already existed in `lib/finds.ts`.
-  The liked state loads in the same `Promise.all` as the find detail, so opening costs no extra
-  round-trip.
-- Favoriting is offered on **every** find, unlike delete. The Favorites and Want to Have sections
-  hold other people's finds and favoriting those is the point of the list.
-- The toggle is optimistic with rollback, because a round-trip per tap feels broken on a phone.
-- Opening a modal does **not** unfocus the screen, so the Garden's `useFocusEffect` will not
-  refetch on close. The Favorites section is patched directly from card data already on screen.
-
-### Bundling from Metro is a weak check — use `expo export`
-
-Worth knowing, because §9/§10/§13 all leaned on it: **expo-router lazily loads routes, so the
-Metro entry bundle contains framework code only, not the screens.** Grepping a 200-OK
-`entry.bundle` for app strings returns nothing — `Delete sighting` and `Your Garden` are both
-absent. A 200 there proves the graph resolves and nothing more; it would pass with a broken
-screen. `npx expo export` bundles every route, and grepping its output does confirm the code
-shipped. That is how this change was verified before the device test.
-
-### Three other hearts exist, two of them dead
-
-| Where | State |
-|---|---|
-| `(tabs)/index.tsx` (Home) | Wired — calls `toggleLike`, works |
-| `find-detail-modal.tsx` | Wired — this change, verified on device |
-| `plantident.tsx:181` | **`setLiked(prev => !prev)` — local state, never persisted** |
-| `plantlog.tsx:252` | **No `onPress` at all** — same defect as the §3 login buttons |
-
-**Correction, same day:** `plantident`'s heart was *not* dead. It is a **deferred** write — local
-state forwarded to `plantlog` as a nav param and applied after the find is created on save. The
-structural objection above was right (no `find_id` on that screen) but the code already solved it.
-Only `plantlog`'s own two icons were genuinely dead. See §16.
-
----
-
-## 15. The Favorites section never worked — FIXED 2026-07-23
-
-Liking wrote to the database correctly the whole time. **The Garden could never read it back.**
-
-`garden.tsx` selected `likes.id`, but `likes` has no `id` column — its primary key is the
-composite `(user_id, find_id)` (`init_schema.sql:74-79`). PostgREST answers that with
-`42703 column likes.id does not exist`. Verified directly against production:
-
-```
-/rest/v1/likes?select=id      -> {"code":"42703","message":"column likes.id does not exist"}
-/rest/v1/likes?select=find_id -> []
-```
-
-The failure was invisible because the guard read `if (active && likesData && !likesError)`, so an
-error simply skipped `setFavorites` and left the section empty. Fixed by selecting `find_id`, and
-both this query and the Want to Have one now `console.error` on failure — the swallow is what let
-this survive undetected.
-
-`list_items` is keyless in the same way, but its query already selected `find_id`, so Want to Have
-was never affected.
-
-**Symptom worth recognising again:** a feature that writes fine and reads back fine in one place
-(the modal's `getFindUserStatus`) but vanishes on a list refetch. That shape points at the list
-query, not the write.
-
----
-
-## 16. Capture flow: bookmarking removed, like errors surfaced — DONE 2026-07-23
-
-**Runtime-verified on the phone:** capture → identify → heart → log → the plant appears under
-Favorites.
-
-- **Bookmarking is gone from the capture flow.** "Want to Have" is for plants you have *not*
-  found; offering it on your own freshly logged sighting was incoherent. Removed the control from
-  `plantident`, the `bookmarked` nav param, and the ~25 lines in `plantlog` that applied it.
-- **Want to Have is now written from one place only:** the Home feed's bookmark on a friend's
-  find (`(tabs)/index.tsx` → `toggleBookmark`), which is the case the list is for.
-- **The deferred like now goes through `likeFind`** instead of an inline insert that had **no
-  error check at all**. On failure it logs and tells the user but does *not* fail the save — the
-  photo upload and find creation already succeeded, so discarding a logged plant over a failed
-  heart would be the wrong trade.
-- **Removed `plantlog`'s two decorative icons** — no `onPress`, hard-coded to the empty outline,
-  so they never reflected what was chosen on the previous screen. Plus the now-orphaned
-  `photoTopRight` style.
-
-### Left behind on purpose
-
-Rows already in `list_items` from the old capture-flow bookmarking are **not** cleaned up, so any
-plant of your own bookmarked before this change still shows under Want to Have. Removing them is a
-delete against production and was not done unprompted.
-
----
-
-## 17. Cleanup pass — DONE 2026-07-23
-
-Everything here needed no decisions from Kevin. All merged to `main`, still unpushed.
-
-### `finds.city` is now written — **needs an edge function deploy**
-
-`city` was declared on `FindDetail` and selected by `getFind`, but nothing ever populated it, so
-the detail modal's location row could never render. Wired end to end:
-
-- `plantlog.tsx` sends `city: location || null` — the reverse-geocoded `"City, Region"` already
-  shown on the Log Location button (`Location.reverseGeocodeAsync`, `plantlog.tsx:73-83`).
-- `lib/finds.ts` `createFind` gained an optional `city` and forwards it.
-- `create-find/index.ts` accepts it, trims it, caps it at 120 chars (it is rendered verbatim in
-  the detail view) and inserts it.
-
-**This is code-only. The live `create-find` is still version 6 and ignores `city`, so the column
-stays null in production until the function is redeployed.** Existing finds are not backfilled;
-`lat`/`lng` are present on all 32, so a reverse-geocode backfill is possible but was not done.
-
-### Lint: 7 errors → 0
-
-21 warnings remain (unused vars, `import/no-duplicates`) — cosmetic, untouched.
-
-**Do not "fix" `react/no-unescaped-entities` with HTML entities.** React Native does not decode
-them, so `&apos;` renders literally as `&apos;` on a device. The four apostrophes were fixed with
-JSX string expressions (`{"Let's go!"}`) and the quoted note in `(tabs)/index.tsx:264` with a
-template literal. `garden.tsx`'s `forwardRef` got an explicit `displayName`.
-
-### Files and branches removed
-
-- Deleted the empty root `.env.local` (orphaned — Expo loads from `Mobile/`, which is untouched)
-  and `backend/nul` (23 KB stray pg_dump; the real backup is in `C:\Users\kevin\Fleurish-backups\`).
-  Both were untracked, so copies were left in the session scratchpad under `removed-strays/`.
-- Deleted the merged branches `fix/expo-sdk-57-and-web` (was `5a4576d`) and
-  `chore/downgrade-sdk-54` (was `9e381ff`). Both were fully contained in `main`; recreate with
-  `git branch <name> <sha>` if ever needed.
-
-### The 44 style deprecations of §9 are moot
-
-`shadow*` ×36, `textShadow*` ×3 and `pointerEvents` ×5 are all still in the code, but they were
-**RN 0.86** deprecations. On RN 0.81 they are not deprecated and emit nothing. The SDK 54 pin of
-§13 dissolved that item; it only returns if the project ever moves forward again.
-
-### Verification
-
-`tsc --noEmit` exit 0 · `expo lint` 0 errors · web export exit 0, 23/23 routes.
-
----
-
-## 18. Plant Doctor wired to real Gemini — DONE 2026-07-23 (code); needs a key check
-
-Kevin's recollection that "the gemini api wasn't connected properly" was right, but sharper than
-that: **the app never called Gemini at all.** The `diagnose-plant` edge function (Gemini 2.5
-Flash) is well-formed and deployed — probing it returns `401 "No authorization header provided"`,
-its own in-function auth check running — but **nothing in the app invoked it.** `plantdoctor.tsx`
-did not even import `supabase`; the "AI Plant Doctor" was `generateDoctorResponse`, four
-`text.includes()` keyword branches returning hardcoded paragraphs behind a `setTimeout(…, 1500)`
-fake typing delay. The greeting "I am reviewing your log data to diagnose its health" was untrue.
-
-### What was done (scope: option 1, auto-diagnosis only)
-
-- `lib/finds.ts` gained `diagnosePlant(photoUri, extraInfo?)` and a `PlantDiagnosis` type. It
-  reuses the existing `toDataUrl` (resize ≤1024px → base64 data URL) so the payload matches what
-  `identify-plant` already sends.
-- `plantdoctor.tsx` auto-trigger path now calls it with the log note as `extra_info`, formats the
-  structured `{diagnosis, confidence, description, action_plan[]}` into the chat bubble, and falls
-  back to the old generic tips **labelled as such** if the photo is missing or the call fails.
-- Registered `diagnose-plant` in `config.toml` — it was the only function with no `[functions.*]`
-  block (deployed anyway, but unregistered and inconsistent).
-
-### Deliberately NOT done
-
-**Manual follow-up chat is still canned.** `diagnose-plant` is one-shot and accepts no
-conversation history, so the text input's replies still come from `generateDoctorResponse`. Making
-the doctor genuinely conversational needs a different/new edge function — a separate decision, per
-the chosen scope. The subtitle still reads "AI Diagnostic Chat," which now overstates the manual
-path.
-
-### Runtime unknown — check before trusting it
-
-`GEMINI_API_KEY` in Supabase secrets was **not** verifiable from here (triggering the missing-key
-500 needs a real user JWT). If it is unset, the auto-diagnosis will fail and silently show the
-generic-tips fallback — which looks like success. Confirm the secret exists, then test on device:
-capture → identify → log → the Plant Doctor's first diagnosis should reflect the actual photo, not
-boilerplate. Code-only change; `diagnose-plant` itself was already deployed and needs no redeploy.
-
-### Verification
-
-`tsc --noEmit` exit 0 · `expo lint` 0 errors (1 pre-existing exhaustive-deps warning) · web export
-exit 0, 23/23 routes · `diagnose-plant` call confirmed present in the export bundle.

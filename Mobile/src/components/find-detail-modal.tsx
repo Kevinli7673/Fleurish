@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -55,6 +56,10 @@ export function FindDetailModal({ findId, onClose, onDeleted, onFavoriteChanged 
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A percentage maxHeight only clamps if the parent's height is definite, which left the
+  // sheet free to grow past the screen — the body never had to shrink, so it never scrolled
+  // and its tail was clipped. An absolute pixel cap always clamps.
+  const { height: windowHeight } = useWindowDimensions();
 
   useEffect(() => {
     if (!findId) return;
@@ -73,6 +78,12 @@ export function FindDetailModal({ findId, onClose, onDeleted, onFavoriteChanged 
           getFindUserStatus(findId),
         ]);
         if (!active) return;
+        // getUser() is a network call. It resolves rather than throws on failure, so an
+        // unnoticed error here leaves myUserId null, which reads as "not yours" and
+        // silently hides delete on your own sighting.
+        if (userResult.error) {
+          console.error('Could not confirm who is signed in:', userResult.error);
+        }
         setFind(detail);
         setMyUserId(userResult.data.user?.id ?? null);
         setFavorited(status.liked);
@@ -148,7 +159,7 @@ export function FindDetailModal({ findId, onClose, onDeleted, onFavoriteChanged 
       {/* Tapping the backdrop dismisses; the sheet absorbs its own presses so taps
           inside it don't fall through. */}
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable style={[styles.sheet, { maxHeight: windowHeight * 0.88 }]} onPress={() => {}}>
           {loading && (
             <View style={styles.stateBox}>
               <ActivityIndicator size="large" color="#1B391C" />
@@ -195,7 +206,6 @@ export function FindDetailModal({ findId, onClose, onDeleted, onFavoriteChanged 
               <ScrollView
                 style={styles.body}
                 contentContainerStyle={styles.bodyContent}
-                showsVerticalScrollIndicator={false}
               >
                 <Text style={styles.name}>{name}</Text>
                 {find.plants?.scientific_name && (
@@ -236,7 +246,13 @@ export function FindDetailModal({ findId, onClose, onDeleted, onFavoriteChanged 
                   </Section>
                 )}
 
-                {isMine && (
+              </ScrollView>
+
+              {/* Outside the ScrollView on purpose. As a scrolling child it sat below a
+                  variable amount of care-tip text, and when that overflowed the sheet the
+                  button was clipped away with no way to scroll to it. */}
+              {isMine && (
+                <View style={styles.footer}>
                   <Pressable
                     style={[styles.deleteButton, deleting && styles.buttonDisabled]}
                     onPress={handleDelete}
@@ -251,8 +267,8 @@ export function FindDetailModal({ findId, onClose, onDeleted, onFavoriteChanged 
                       </>
                     )}
                   </Pressable>
-                )}
-              </ScrollView>
+                </View>
+              )}
             </>
           )}
         </Pressable>
@@ -290,7 +306,6 @@ const styles = StyleSheet.create({
   sheet: {
     width: '100%',
     maxWidth: 420,
-    maxHeight: '88%',
     backgroundColor: '#FFFDF9',
     borderRadius: 24,
     overflow: 'hidden',
@@ -379,6 +394,13 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: '#4A5A50',
   },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#EDE7DD',
+  },
   deleteButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -387,7 +409,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#D9637A',
     borderRadius: 26,
     height: 50,
-    marginTop: 28,
   },
   deleteButtonText: {
     fontFamily: 'Author-Bold',

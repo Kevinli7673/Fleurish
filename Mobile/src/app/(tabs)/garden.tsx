@@ -139,10 +139,14 @@ export default function Garden() {
             // Load Favorites from liked sightings.
             // `likes` has no `id` column — its primary key is (user_id, find_id) — so
             // selecting one makes PostgREST 400 and leaves this section permanently empty.
+            // Newest first, to match My Collection (getMyFinds orders created_at desc).
+            // Without this the row came back in whatever order Postgres chose, so a
+            // freshly liked plant landed in an arbitrary position after a refetch.
             const { data: likesData, error: likesError } = await supabase
               .from('likes')
-              .select('find_id, finds!inner(id, photo_url, plants(common_name))')
-              .eq('user_id', userId);
+              .select('find_id, created_at, finds!inner(id, photo_url, plants(common_name))')
+              .eq('user_id', userId)
+              .order('created_at', { ascending: false });
 
             if (likesError) console.error('Could not load favorites:', likesError);
             if (active && likesData && !likesError) {
@@ -213,7 +217,9 @@ export default function Garden() {
       const known =
         dynamicCollection.find((p) => p.id === findId) ??
         wantToFind.find((p) => p.id === findId);
-      return known ? [...prev, known] : prev;
+      // Prepend: the newest favorite belongs on the left, which is where the refetch
+      // will put it too. Appending made it jump across the row on the next load.
+      return known ? [known, ...prev] : prev;
     });
   };
 

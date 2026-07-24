@@ -214,7 +214,12 @@ export async function createFind(input: {
 /** Delete one of your own finds. RLS rejects finds belonging to anyone else. */
 export async function deleteFind(findId: string): Promise<void> {
   const { error } = await supabase.from('finds').delete().eq('id', findId);
-  if (error) throw new Error('Could not delete this sighting.');
+  if (error) {
+    // The user-facing string stays generic, but swallowing the Postgres error entirely hid
+    // a foreign key violation for as long as this feature has existed.
+    console.error('Delete failed for find', findId, error);
+    throw new Error('Could not delete this sighting.');
+  }
 }
 
 /** The current user's finds, newest first (for the Garden). */

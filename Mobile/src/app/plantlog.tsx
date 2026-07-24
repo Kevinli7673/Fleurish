@@ -37,7 +37,9 @@ export default function LogPlant() {
     ? { uri: params.photoUri }
     : require('@/assets/images/monstera.jpg');
 
-  const [date, setDate] = useState<Date | null>(null);
+  // Defaults to the moment the photo was taken — this screen mounts straight off the
+  // camera. The picker below can still move it back for a plant spotted earlier.
+  const [date, setDate] = useState<Date>(() => new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [location, setLocationText] = useState('');
   const [locating, setLocating] = useState(false);
@@ -154,6 +156,9 @@ export default function LogPlant() {
             // Without this the detail view's location row can never render.
             city: location || null,
             is_public: true,
+            // Today unless the user picked an earlier date. create-find validates this
+            // and ignores anything unparseable or in the future.
+            created_at: date.toISOString(),
           },
         }
       );
@@ -188,7 +193,7 @@ export default function LogPlant() {
             photoUri: params.photoUri,
             plantName: plantName,
             location: location || 'Nearby',
-            date: date ? date.toLocaleDateString() : new Date().toLocaleDateString(),
+            date: date.toLocaleDateString(),
             note: note || '',
             autoTrigger: 'true',
           },
@@ -242,22 +247,23 @@ export default function LogPlant() {
         </View>
           {/* Date + location card */}
           <View style={styles.card}>
-            <Text style={styles.label}>Select date</Text>
+            <Text style={styles.label}>Date found</Text>
             <Pressable
               style={styles.dateInput}
               onPress={() => setShowDatePicker(true)}
             >
-              <Text style={date ? styles.dateInputText : styles.dateInputPlaceholder}>
-                {date ? date.toLocaleDateString() : 'Select date'}
-              </Text>
+              <Text style={styles.dateInputText}>{date.toLocaleDateString()}</Text>
               <MaterialCommunityIcons name="calendar-month-outline" size={20} color="#8A8A8A" />
             </Pressable>
 
             {showDatePicker && (
               <DateTimePicker
-                value={date ?? new Date()}
+                value={date}
                 mode="date"
                 display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                // A find can be back-dated but not post-dated; create-find drops future
+                // dates anyway, so blocking them here avoids a silent correction.
+                maximumDate={new Date()}
                 onChange={handleDateChange}
               />
             )}
@@ -390,10 +396,6 @@ const styles = StyleSheet.create({
   dateInputText: {
     fontSize: 14,
     color: '#333',
-  },
-  dateInputPlaceholder: {
-    fontSize: 14,
-    color: '#A8A8A8',
   },
 
   locationButton: {
