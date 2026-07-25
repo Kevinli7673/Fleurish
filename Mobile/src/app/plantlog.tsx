@@ -95,6 +95,20 @@ export default function LogPlant() {
       Alert.alert('Missing photo', 'Please take a picture of the plant first.');
       return;
     }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      Alert.alert(
+        'Sign in to save',
+        'Create an account or sign in to add this plant to your garden.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In', onPress: () => router.push('/login') },
+        ]
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       let lat = coords?.latitude ?? 0;
@@ -116,11 +130,7 @@ export default function LogPlant() {
         }
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      const userId = user?.id;
-      if (!userId) {
-        throw new Error('No active user session found');
-      }
+      const userId = user.id;
 
       const fileName = `${userId}/${Date.now()}.jpg`;
       const base64 = await FileSystem.readAsStringAsync(params.photoUri, {

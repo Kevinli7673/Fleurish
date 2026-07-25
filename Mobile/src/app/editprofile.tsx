@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import * as Location from 'expo-location';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useProfile } from '@/context/profilecontext';
 import { Alert } from '@/lib/alert';
+import { supabase } from '@/lib/supabase';
 import { updateProfile, uploadAvatar } from '@/lib/profile';
 
 export default function EditProfile() {
@@ -29,8 +30,27 @@ export default function EditProfile() {
   const [photoUri, setPhotoUri] = useState<string | null>(profile.photoUri);
   const [location, setLocation] = useState(profile.location);
   const [bio, setBio] = useState(profile.bio);
+  const [username, setUsername] = useState('');
   const [locating, setLocating] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function loadUsername() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !active) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (active && data) setUsername(data.username);
+    }
+    loadUsername();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const [fontsLoaded] = useFonts({
     Mootjungle: require('@/assets/fonts/Mootjungle.ttf'),
@@ -103,6 +123,12 @@ export default function EditProfile() {
   };
 
   const handleSave = async () => {
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      Alert.alert('Username required', 'Please enter a username.');
+      return;
+    }
+
     setSaving(true);
     try {
       let finalPhotoUrl = photoUri;
@@ -114,10 +140,16 @@ export default function EditProfile() {
       }
 
       console.log('Updating database profile details...');
-      await updateProfile({ bio });
+      await updateProfile({ username: trimmedUsername, bio, needs_username: false });
 
-      profile.updateProfile({ photoUri: finalPhotoUrl, location, bio });
-      router.back();
+      profile.updateProfile({ photoUri: finalPhotoUrl, location, bio, needsUsername: false });
+      // Forced first-login redirects use router.replace(), which leaves nothing to go
+      // back to — fall back to Feed in that case instead of dead-ending.
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (err: any) {
       Alert.alert('Save failed', err.message || 'An error occurred while saving your profile.');
     } finally {
@@ -183,6 +215,26 @@ export default function EditProfile() {
             </View>
           </Pressable>
           <Text style={styles.avatarHint}>Tap to change photo</Text>
+
+          {/* Username */}
+          <Text style={styles.label}>Username</Text>
+          <View style={styles.inputWrapper}>
+            <MaterialCommunityIcons
+              name="at"
+              size={20}
+              color="#8A8A8A"
+              style={styles.inputIcon}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Enter a username"
+              placeholderTextColor="#A8A8A8"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
 
           {/* Location */}
           <Text style={styles.label}>Location</Text>

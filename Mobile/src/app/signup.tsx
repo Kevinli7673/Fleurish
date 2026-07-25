@@ -24,6 +24,7 @@ export default function Signup() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -45,13 +46,33 @@ export default function Signup() {
 
   async function handleSignUp() {
     setError(null);
+
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError('Please choose a username.');
+      return;
+    }
+
     setLoading(true);
+
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', trimmedUsername)
+      .maybeSingle();
+    if (existing) {
+      setLoading(false);
+      setError('That username is already taken.');
+      return;
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
+          username: trimmedUsername,
         },
       },
     });
@@ -111,6 +132,25 @@ export default function Signup() {
               value={fullName}
               onChangeText={setFullName}
               autoCapitalize="words"
+            />
+          </View>
+
+          <Text style={styles.label}>Username:</Text>
+          <View style={styles.inputWrapper}>
+            <MaterialCommunityIcons
+              name="at"
+              size={20}
+              color="#8A8A8A"
+              style={styles.inputIcon}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Choose a username"
+              placeholderTextColor="#A8A8A8"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              autoCorrect={false}
             />
           </View>
 

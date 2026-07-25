@@ -10,9 +10,10 @@ import {
   Keyboard,
   ActivityIndicator,
   Image,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { FindDetailModal } from '@/components/find-detail-modal';
 import { getMyFinds, MyFind } from '@/lib/finds';
 import { supabase } from '@/lib/supabase';
@@ -113,6 +114,7 @@ const SectionBlock = React.forwardRef<ScrollView, SectionBlockProps>(
 SectionBlock.displayName = 'SectionBlock';
 
 export default function Garden() {
+  const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlightedPlantId, setHighlightedPlantId] = useState<string | null>(
@@ -123,18 +125,23 @@ export default function Garden() {
   const [wantToFind, setWantToFind] = useState<Plant[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFindId, setSelectedFindId] = useState<string | null>(null);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
       async function loadFinds() {
         try {
+          const { data: { user } } = await supabase.auth.getUser();
+          const userId = user?.id;
+          if (!active) return;
+          setSignedIn(!!userId);
+          if (!userId) return;
+
           const data = await getMyFinds();
           if (!active) return;
           setMyFinds(data);
 
-          const { data: { user } } = await supabase.auth.getUser();
-          const userId = user?.id;
           if (userId && active) {
             // Load Favorites from liked sightings.
             // `likes` has no `id` column — its primary key is (user_id, find_id) — so
@@ -310,22 +317,35 @@ export default function Garden() {
           </View>
 
           {/* Sections */}
-          <View style={styles.sectionsWrapper}>
-            {sections.map((section) => (
-              <SectionBlock
-                key={section.key}
-                section={section}
-                highlightedPlantId={highlightedPlantId}
-                onPressCard={handleCardPress}
-                ref={(el) => {
-                  sectionScrollRefs.current[section.key] = el;
-                }}
-                onLayout={(y) => {
-                  sectionYPositions.current[section.key] = y;
-                }}
-              />
-            ))}
-          </View>
+          {signedIn === false ? (
+            <View style={styles.signInPrompt}>
+              <Ionicons name="leaf-outline" size={32} color="#1B391C" style={{ opacity: 0.6 }} />
+              <Text style={styles.signInPromptTitle}>Sign in to see your garden</Text>
+              <Text style={styles.signInPromptSubtitle}>
+                Your logged plants, favorites, and wishlist all live here once you're signed in.
+              </Text>
+              <TouchableOpacity style={styles.signInButton} onPress={() => router.push('/login')}>
+                <Text style={styles.signInButtonText}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.sectionsWrapper}>
+              {sections.map((section) => (
+                <SectionBlock
+                  key={section.key}
+                  section={section}
+                  highlightedPlantId={highlightedPlantId}
+                  onPressCard={handleCardPress}
+                  ref={(el) => {
+                    sectionScrollRefs.current[section.key] = el;
+                  }}
+                  onLayout={(y) => {
+                    sectionYPositions.current[section.key] = y;
+                  }}
+                />
+              ))}
+            </View>
+          )}
         </ImageBackground>
       </ScrollView>
 
@@ -343,10 +363,46 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   background: {
     width: '100%',
+    minHeight: Dimensions.get('window').height,
     paddingBottom: 100,
   },
   sectionsWrapper: {
     paddingTop: 90,
+  },
+  signInPrompt: {
+    marginTop: 90,
+    marginHorizontal: 24,
+    backgroundColor: '#FFFDF9',
+    borderRadius: 24,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  signInPromptTitle: {
+    fontFamily: 'PlayfairDisplay_600SemiBold',
+    fontSize: 20,
+    color: '#1B391C',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  signInPromptSubtitle: {
+    fontFamily: 'Author-Bold',
+    fontSize: 13,
+    color: '#8A9A90',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  signInButton: {
+    backgroundColor: '#1B391C',
+    borderRadius: 24,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+  },
+  signInButtonText: {
+    fontFamily: 'Author-Bold',
+    fontSize: 14,
+    color: '#FFFFFF',
   },
   headerRow: {
     flexDirection: 'row',

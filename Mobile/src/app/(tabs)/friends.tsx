@@ -110,6 +110,7 @@ export default function Friends() {
   const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
   const [currentUserRank, setCurrentUserRank] = useState<LeaderboardEntry | null>(null);
   const [loading, setLoading] = useState(true);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
   const [fontsLoaded] = useFonts({
     PlayfairDisplay_700Bold,
@@ -123,6 +124,9 @@ export default function Friends() {
         try {
           const { data: { user } } = await supabase.auth.getUser();
           const userId = user?.id;
+          if (!active) return;
+          setSignedIn(!!userId);
+          if (!userId) return;
 
           const { data, error } = await supabase.functions.invoke('get-leaderboard', {
             body: { scope: 'all_time', friend_group: null }
@@ -236,30 +240,43 @@ export default function Friends() {
           </View>
 
           {/* Rows */}
-          <View style={styles.listContent}>
-            {displayedData.map((entry) => (
-              <LeaderboardRow
-                key={entry.rank}
-                entry={entry}
-                onLayout={
-                  currentUserRank && entry.rank === currentUserRank.rank
-                    ? (y) => {
-                        userRowY.current = y;
-                      }
-                    : undefined
-                }
-              />
-            ))}
-
-            {!expanded && rankings.length > 5 && (
-              <TouchableOpacity
-                style={styles.seeFullButton}
-                onPress={() => setExpanded(true)}
-              >
-                <Text style={styles.seeFullText}>See full leaderboard ↓</Text>
+          {signedIn === false ? (
+            <View style={styles.signInPrompt}>
+              <Ionicons name="people-outline" size={32} color="#1B391C" style={{ opacity: 0.6 }} />
+              <Text style={styles.signInPromptTitle}>Sign in required</Text>
+              <Text style={styles.signInPromptSubtitle}>
+                Sign in to see the leaderboard and where you rank.
+              </Text>
+              <TouchableOpacity style={styles.signInButton} onPress={() => router.push('/login')}>
+                <Text style={styles.signInButtonText}>Sign In</Text>
               </TouchableOpacity>
-            )}
-          </View>
+            </View>
+          ) : (
+            <View style={styles.listContent}>
+              {displayedData.map((entry) => (
+                <LeaderboardRow
+                  key={entry.rank}
+                  entry={entry}
+                  onLayout={
+                    currentUserRank && entry.rank === currentUserRank.rank
+                      ? (y) => {
+                          userRowY.current = y;
+                        }
+                      : undefined
+                  }
+                />
+              ))}
+
+              {!expanded && rankings.length > 5 && (
+                <TouchableOpacity
+                  style={styles.seeFullButton}
+                  onPress={() => setExpanded(true)}
+                >
+                  <Text style={styles.seeFullText}>See full leaderboard ↓</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </ImageBackground>
       </ScrollView>
 
@@ -279,6 +296,41 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   listContent: { paddingBottom: 100 },
+  signInPrompt: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    backgroundColor: '#FBEFE9',
+    borderRadius: 24,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  signInPromptTitle: {
+    fontFamily: 'PlayfairDisplay_700Bold',
+    fontSize: 20,
+    color: '#1B391C',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  signInPromptSubtitle: {
+    fontFamily: 'Author-Bold',
+    fontSize: 13,
+    color: '#8A8A8A',
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  signInButton: {
+    backgroundColor: '#1B391C',
+    borderRadius: 24,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+  },
+  signInButtonText: {
+    fontFamily: 'Author-Bold',
+    fontSize: 14,
+    color: '#FFFFFF',
+  },
   header: {
     paddingHorizontal: 20,
     paddingTop: 50,

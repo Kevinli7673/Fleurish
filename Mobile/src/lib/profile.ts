@@ -9,6 +9,7 @@ export type Profile = {
   avatar_url: string | null;
   bio: string | null;
   created_at: string;
+  needs_username: boolean;
 };
 
 export type ProfileWithStats = Profile & {
@@ -29,7 +30,7 @@ export async function getProfile(userId: string): Promise<ProfileWithStats> {
   const [profileRes, findsRes, streakRes, friendsRes] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, username, avatar_url, bio, created_at')
+      .select('id, username, avatar_url, bio, created_at, needs_username')
       .eq('id', userId)
       .single(),
     supabase.from('finds').select('id', { count: 'exact', head: true }).eq('user_id', userId),
@@ -91,7 +92,7 @@ export async function uploadAvatar(localUri: string): Promise<string> {
 }
 
 /** Update the current user's profile (avatar: see uploadAvatar). */
-export async function updateProfile(changes: { username?: string; bio?: string }): Promise<void> {
+export async function updateProfile(changes: { username?: string; bio?: string; needs_username?: boolean }): Promise<void> {
   const myId = await getMyUserId();
   const { error } = await supabase.from('profiles').update(changes).eq('id', myId);
   if (error) {

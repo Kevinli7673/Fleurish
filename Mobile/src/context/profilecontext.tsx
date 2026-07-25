@@ -4,6 +4,7 @@ type ProfileData = {
   photoUri: string | null;
   location: string;
   bio: string;
+  needsUsername: boolean;
 };
 
 type ProfileContextValue = ProfileData & {
@@ -14,6 +15,7 @@ const defaultProfile: ProfileData = {
   photoUri: null,
   location: 'Orlando, FL',
   bio: 'This is where niche bio would be.',
+  needsUsername: false,
 };
 
 const ProfileContext = createContext<ProfileContextValue | undefined>(undefined);

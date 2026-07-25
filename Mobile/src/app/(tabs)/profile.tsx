@@ -30,6 +30,7 @@ export default function Profile() {
   const [password, setPassword] = useState('');
   const [profileData, setProfileData] = useState<ProfileWithStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -38,6 +39,8 @@ export default function Profile() {
         try {
           const { data: { user } } = await supabase.auth.getUser();
           const userId = user?.id;
+          if (!active) return;
+          setSignedIn(!!userId);
           if (!userId) return;
 
           const data = await getProfile(userId);
@@ -89,9 +92,37 @@ export default function Profile() {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      setSignedIn(false);
+      setProfileData(null);
     } catch (e: any) {
       Alert.alert('Failed to sign out', e.message);
     }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Delete Account',
+      'This will permanently delete your account and everything in it — finds, photos, streaks, and friends. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { error } = await supabase.functions.invoke('delete-account');
+              if (error) throw error;
+              await supabase.auth.signOut();
+              setSignedIn(false);
+              setProfileData(null);
+              router.replace('/(tabs)');
+            } catch (e: any) {
+              Alert.alert('Failed to delete account', e.message || 'Something went wrong. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const [fontsLoaded] = useFonts({
@@ -105,6 +136,39 @@ export default function Profile() {
       <View style={[styles.loadingContainer, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color="#2F4F3E" />
       </View>
+    );
+  }
+
+  if (signedIn === false) {
+    return (
+      <ImageBackground
+        source={require('@/assets/images/profile.png')}
+        style={styles.background}
+        resizeMode="cover"
+      >
+        <LinearGradient
+          colors={['#FCEDEB', '#F7F1E6', '#F6FDF3']}
+          locations={[0, 0.5, 1]}
+          style={[StyleSheet.absoluteFill, { opacity: 0.3 }]}
+          pointerEvents="none"
+        />
+        <View style={styles.header}>
+          <Text style={styles.wordmark}>Fleurish.</Text>
+        </View>
+        <View style={styles.guestPrompt}>
+          <MaterialCommunityIcons name="account-circle-outline" size={56} color="#2F4F3E" style={{ opacity: 0.6 }} />
+          <Text style={styles.guestPromptTitle}>Sign in to view your profile</Text>
+          <Text style={styles.guestPromptSubtitle}>
+            Track your finds, streaks, and friends by signing in or creating an account.
+          </Text>
+          <Pressable style={styles.guestPromptButton} onPress={() => router.push('/login')}>
+            <Text style={styles.guestPromptButtonText}>Sign In</Text>
+          </Pressable>
+          <Pressable style={styles.guestPromptSecondaryButton} onPress={() => router.push('/signup')}>
+            <Text style={styles.guestPromptSecondaryButtonText}>Create an account</Text>
+          </Pressable>
+        </View>
+      </ImageBackground>
     );
   }
 
@@ -238,7 +302,7 @@ export default function Profile() {
             <Text style={styles.sectionHeaderText}>Big Bad Settings</Text>
           </View>
 
-          <Pressable style={styles.deleteButton} onPress={() => Alert.alert('Delete Account', 'Please contact support at team@fleurish.app to delete your account.')}>
+          <Pressable style={styles.deleteButton} onPress={handleDeleteAccount}>
             <Text style={styles.deleteButtonText}>Delete Account</Text>
           </Pressable>
 
@@ -267,6 +331,57 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 20,
+  },
+  guestPrompt: {
+    marginTop: 40,
+    marginHorizontal: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  guestPromptTitle: {
+    fontFamily: 'Author-Variable',
+    fontSize: 20,
+    color: '#2F4F3E',
+    marginTop: 14,
+    textAlign: 'center',
+  },
+  guestPromptSubtitle: {
+    fontFamily: 'Author-Variable',
+    fontSize: 13,
+    color: '#4B6355',
+    opacity: 0.85,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+  },
+  guestPromptButton: {
+    backgroundColor: '#E8A83D',
+    borderRadius: 26,
+    height: 52,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guestPromptButtonText: {
+    fontFamily: 'Author-Variable',
+    fontSize: 16,
+    color: '#2F4F3E',
+  },
+  guestPromptSecondaryButton: {
+    marginTop: 12,
+    height: 52,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guestPromptSecondaryButtonText: {
+    fontFamily: 'Author-Variable',
+    fontSize: 14,
+    color: '#4B6355',
+    textDecorationLine: 'underline',
   },
   header: {
     flexDirection: 'row',
