@@ -1,6 +1,6 @@
 # Fleurish — session handoff
 
-**Last updated 2026-07-25.**
+**Last updated 2026-08-02.**
 
 There is also a project memory at `~/.claude/projects/C--Users-kevin-Projects-Fleurish/memory/`.
 
@@ -38,6 +38,14 @@ There is also a project memory at `~/.claude/projects/C--Users-kevin-Projects-Fl
   (`NEARBY_BLOOMS`) whenever there are no real finds, and even the real query isn't actually
   location-based — it's just the 10 most recent finds site-wide, with `city` text shown in
   place of a computed distance.
+- **Fixed: web-only failures in `plantlog.tsx`** — "Log Location" and "Add to My Garden" both
+  called native-only APIs unconditionally. `expo-location`'s `reverseGeocodeAsync` throws on
+  web (no geocoder there), and `expo-file-system`'s `readAsStringAsync` throws
+  `UnavailabilityError` on web too. Location now skips reverse-geocoding on web and keeps the
+  already-captured coords instead of discarding them on the geocode failure; the photo read
+  now branches to `fetch` + `FileReader` on web instead of `FileSystem.readAsStringAsync`
+  (native unaffected). Verified the web bundle compiles and serves; full click-through
+  (camera/GPS permissions) still needs a manual pass in a real browser.
 
 ---
 

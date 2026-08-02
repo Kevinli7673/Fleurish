@@ -23,6 +23,26 @@ import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
+// expo-file-system's readAsStringAsync isn't implemented on web (throws
+// UnavailabilityError). On web the photo is a blob/data URI reachable via fetch,
+// so read it through FileReader instead; native keeps using FileSystem directly.
+const readPhotoAsBase64 = async (uri: string): Promise<string> => {
+  if (Platform.OS === 'web') {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUrl = reader.result as string;
+        resolve(dataUrl.split(',')[1] ?? '');
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+  return FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+};
+
 export default function LogPlant() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -72,16 +92,31 @@ export default function LogPlant() {
         longitude: position.coords.longitude,
       });
 
-      const [place] = await Location.reverseGeocodeAsync({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      });
+      // expo-location has no web geocoder (reverseGeocodeAsync throws there) —
+      // coords are already captured above, so just fall back to a plain label
+      // instead of losing the whole location on a geocode-only failure.
+      if (Platform.OS === 'web') {
+        setLocationText('Location logged');
+        return;
+      }
 
-      if (place) {
-        const city = place.city ?? place.subregion ?? '';
-        const region = place.region ?? '';
-        const formatted = [city, region].filter(Boolean).join(', ');
-        setLocationText(formatted || 'Location logged');
+      try {
+        const [place] = await Location.reverseGeocodeAsync({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+
+        if (place) {
+          const city = place.city ?? place.subregion ?? '';
+          const region = place.region ?? '';
+          const formatted = [city, region].filter(Boolean).join(', ');
+          setLocationText(formatted || 'Location logged');
+        } else {
+          setLocationText('Location logged');
+        }
+      } catch (geocodeErr) {
+        console.warn('Reverse geocoding failed:', geocodeErr);
+        setLocationText('Location logged');
       }
     } catch (err) {
       Alert.alert('Something went wrong', 'Could not fetch your location.');
@@ -133,9 +168,7 @@ export default function LogPlant() {
       const userId = user.id;
 
       const fileName = `${userId}/${Date.now()}.jpg`;
-      const base64 = await FileSystem.readAsStringAsync(params.photoUri, {
-        encoding: 'base64',
-      });
+      const base64 = await readPhotoAsBase64(params.photoUri);
 
       console.log('Uploading photo to Supabase Storage...');
       const { error: uploadErr } = await supabase.storage
