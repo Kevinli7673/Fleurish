@@ -34,6 +34,13 @@ There is also a project memory at `~/.claude/projects/C--Users-kevin-Projects-Fl
 - **Delete Account** is fully implemented — edge function `delete-account` (deployed),
   service-role `auth.admin.deleteUser()`, relying on `profiles.id references auth.users(id)
   on delete cascade` to clean up every dependent table in one call.
+- **Vercel Web Analytics — code done, dashboard step NOT done.** `@vercel/analytics` 2.0.1
+  is installed in `Mobile/` and mounted from `Mobile/src/app/_layout.tsx`, outside the
+  `isLoading` branch so a slow session check can't swallow the first page view. It still
+  needs **Vercel project → Analytics → Enable Web Analytics**; until then
+  `/_vercel/insights/script.js` 404s and the console logs the package's "be sure to enable
+  Web Analytics" warning. Note this ships nothing to the live site on its own — see the
+  Vercel bullet above about deploys coming from local disk.
 - **Known incomplete**: Feed's "Blooming near you" falls back to hardcoded mock plants
   (`NEARBY_BLOOMS`) whenever there are no real finds, and even the real query isn't actually
   location-based — it's just the 10 most recent finds site-wide, with `city` text shown in
@@ -59,6 +66,14 @@ There is also a project memory at `~/.claude/projects/C--Users-kevin-Projects-Fl
   module types) — an Expo template leftover, unrelated to app work.
 - Local dev needs Docker Desktop + WSL2 for `npx supabase start`
   (`postgresql://postgres:postgres@127.0.0.1:54322/postgres`).
+- **`@vercel/analytics` is browser-only and must never reach the native bundle.** That's
+  handled by Metro platform resolution, not a runtime check: `analytics.web.tsx` renders the
+  real component, `analytics.tsx` returns `null`, and app code imports `@/components/analytics`
+  so each platform picks its own file. Also note the web app is an **Expo Router export, not
+  Next.js** — it uses the `/react` entry; `@vercel/analytics/next` does not apply. Page views
+  come from the script's History-API auto-tracking, which works here only because there are
+  no dynamic `[param]` routes; adding one means passing `route`/`path` explicitly, or every
+  raw path lands as its own entry.
 
 ---
 

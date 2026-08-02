@@ -2,6 +2,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import type { Session } from '@supabase/supabase-js';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { Analytics } from '@/components/analytics';
 import { ProfileProvider, useProfile } from '@/context/profilecontext';
 import { useSession } from '@/hooks/use-session';
 import { supabase } from '@/lib/supabase';
@@ -9,19 +10,22 @@ import { supabase } from '@/lib/supabase';
 export default function RootLayout() {
   const { session, isLoading } = useSession();
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FCEDEB' }}>
-        <ActivityIndicator size="large" color="#1B391C" />
-      </View>
-    );
-  }
-
+  // Analytics sits outside the loading branch so the first page view is still
+  // recorded when the session check is slow. It renders nothing on native.
   return (
-    <ProfileProvider>
-      <NavigationGate session={session} />
-      <Stack screenOptions={{ headerShown: false }} />
-    </ProfileProvider>
+    <>
+      <Analytics />
+      {isLoading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FCEDEB' }}>
+          <ActivityIndicator size="large" color="#1B391C" />
+        </View>
+      ) : (
+        <ProfileProvider>
+          <NavigationGate session={session} />
+          <Stack screenOptions={{ headerShown: false }} />
+        </ProfileProvider>
+      )}
+    </>
   );
 }
 
