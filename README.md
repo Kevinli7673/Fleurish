@@ -9,6 +9,8 @@
 
 > A premium, gamified social plant identification and health diagnostic mobile application designed to help you discover, log, and care for nature around you.
 
+🌐 **Try it on the web:** [fleurish-six.vercel.app](https://fleurish-six.vercel.app)
+
 ---
 
 ## 🏆 Hackathon Submission
@@ -36,13 +38,24 @@ This project was developed and submitted as a group entry for **Knight Hacks' Bl
 - 🏆 **Gamified Leaderboard**
   Climb the ranks! Compete with friends and local players on the leaderboard sorted by total "bloom counts" logged.
 
+- 🔐 **Accounts & Guest Browsing**
+  Browse the feed, garden, and plant scanner without an account. Sign up with email/password or Google/Discord OAuth when you're ready to save finds. Pick a username, edit your profile, or delete your account at any time.
+
 ---
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React Native, Expo (SDK 51), Expo Router (File-based Routing), TypeScript, Expo Linear Gradient, Lucide/Vector Icons.
+- **Frontend**: React Native, Expo (SDK 54), Expo Router (File-based Routing), React Native Web, TypeScript, Expo Linear Gradient, Lucide/Vector Icons.
 - **Backend & Database**: Supabase (PostgreSQL database with RLS policies, trigger-based streaks/feed events, and Storage Buckets for photo uploads).
-- **Edge Runtime**: Deno-powered Supabase Edge Functions (`identify-plant` for AI classification; `create-find` for transactional inserts; `get-leaderboard` for rank calculations).
+- **Auth**: Supabase Auth with email/password plus Google and Discord OAuth.
+- **Edge Runtime**: Deno-powered Supabase Edge Functions:
+  - `identify-plant` / `diagnose-plant`: AI classification and health diagnostics
+  - `create-find`: transactional inserts for new sightings
+  - `get-leaderboard` / `get-nearby-finds`: rankings and the nearby feed
+  - `send-friend-request` / `respond-friend-request`: friends
+  - `update-streak`: streak tracking
+  - `delete-account`: full account deletion
+- **Hosting**: Web build deployed on Vercel with Vercel Web Analytics.
 
 ---
 
@@ -65,6 +78,11 @@ Ensure you have Node.js and the Supabase CLI installed on your machine.
    npx expo start --tunnel --clear
    ```
 4. Scan the QR code using the **Expo Go** application on your iOS or Android device.
+
+To run it in the browser instead:
+```bash
+npm run web
+```
 
 ### 3. Deploying Supabase Edge Functions (Optional)
 If modifying the backend edge functions, deploy them to your Supabase project:
