@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Pressable,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,6 +29,31 @@ export default function Camera() {
   const [facing, setFacing] = useState<CameraType>('back');
   const [identifying, setIdentifying] = useState(false);
 
+  const handleGrantAccess = async () => {
+    // Browsers only expose the camera on HTTPS or localhost. On a plain-http LAN address
+    // (e.g. testing on a phone against the dev server) the request fails silently.
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && !window.isSecureContext) {
+      Alert.alert(
+        'Camera unavailable',
+        'Your browser only allows camera access over HTTPS. Open the app from its https:// address to use the camera.'
+      );
+      return;
+    }
+    try {
+      const result = await requestPermission();
+      if (!result.granted) {
+        Alert.alert(
+          'Camera access denied',
+          result.canAskAgain
+            ? 'Fleurish needs the camera to identify plants.'
+            : 'Turn on camera access for this app in your settings, then try again.'
+        );
+      }
+    } catch {
+      Alert.alert('Camera unavailable', 'Could not open the camera on this device.');
+    }
+  };
+
   if (!permission) {
     // Permissions are still loading
     return <View style={styles.loadingContainer} />;
@@ -40,7 +66,7 @@ export default function Camera() {
         <Text style={styles.permissionText}>
           Fleurish needs camera access to identify plants.
         </Text>
-        <PillButton label="Grant Access" onPress={requestPermission} />
+        <PillButton label="Grant Access" onPress={handleGrantAccess} />
         <Pressable accessibilityRole="button" style={styles.permissionBackButton} onPress={() => router.back()}>
           <Text style={styles.permissionBackText}>Go back</Text>
         </Pressable>

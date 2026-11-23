@@ -30,7 +30,7 @@ export function PillButton({ label, onPress, disabled, variant = 'default' }: Pi
       {bloom && (
         <LinearGradient colors={[HifiColors.rank.gold, HifiColors.coral]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
       )}
-      <Text style={[styles.label, bloom && styles.bloomLabel, welcome && styles.welcomeLabel]}>{label}</Text>
+      <Text selectable={false} style={[styles.label, bloom && styles.bloomLabel, welcome && styles.welcomeLabel]}>{label}</Text>
       {bloom && <MaterialCommunityIcons name="arrow-right" size={14} color={HifiColors.mint} />}
     </Pressable>
   );

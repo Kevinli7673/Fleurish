@@ -61,7 +61,7 @@ type FriendUpdate = {
   date: string;
   note: string;
   loggedBy: string;
-  match: string;
+  match?: string;
   image: ImageSourcePropType;
 };
 
@@ -119,7 +119,7 @@ export default function Feed() {
                 location: highlight.city || 'Nearby',
                 note: highlight.caption || 'Logged a new plant sighting!',
                 loggedBy: highlight.profiles?.username || 'Sprout Finder',
-                match: highlight.confidence ? `${Math.round(Number(highlight.confidence) * 100)}% match` : 'AI match',
+                match: highlight.confidence ? `${Math.round(Number(highlight.confidence) * 100)}% match` : undefined,
                 image: highlight.photo_url ? { uri: highlight.photo_url } : require('@/assets/images/monstera.jpg'),
               });
 
@@ -232,7 +232,9 @@ export default function Feed() {
                   <View style={styles.column}><Text style={styles.eyebrow}>LOGGED BY</Text><Text style={styles.value}>{displayedFriendUpdate.loggedBy}</Text></View>
                 </View>
                 <View style={styles.details}>
-                  <View style={styles.column}><Text style={styles.eyebrow}>MATCH</Text><Text style={styles.value}>{displayedFriendUpdate.match}</Text></View>
+                  {displayedFriendUpdate.match ? (
+                    <View style={styles.column}><Text style={styles.eyebrow}>MATCH</Text><Text style={styles.value}>{displayedFriendUpdate.match}</Text></View>
+                  ) : null}
                   <View style={styles.column}><Text style={styles.eyebrow}>DATE</Text><Text style={styles.value}>{displayedFriendUpdate.date}</Text></View>
                 </View>
               </View>
