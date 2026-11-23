@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs, usePathname, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,17 +13,18 @@ const icons = {
   profile: require('../../assets/images/navigation/profile.svg'),
 };
 
-function tabOptions(name: keyof typeof icons, title: string) {
+function tabOptions(name: keyof typeof icons, title: string, selected = false) {
   return {
     title,
     tabBarIcon: ({ color }: { color: string }) => (
-      <Image source={icons[name]} tintColor={color} style={styles.icon} />
+      <Image source={icons[name]} tintColor={selected ? HifiColors.navActive : color} style={styles.icon} />
     ),
   };
 }
 
 export default function TabsLayout() {
   const router = useRouter();
+  const inCollection = usePathname() === '/collection';
   const bottom = Math.max(10, useSafeAreaInsets().bottom);
 
   return (
@@ -37,16 +38,18 @@ export default function TabsLayout() {
         tabBarLabelPosition: 'below-icon',
         tabBarLabel: ({ children, color, focused }) => (
           <View style={styles.labelGroup}>
-            <Text numberOfLines={1} style={[HifiType.navLabel, { color }, focused && styles.selectedLabel]}>
+            <Text numberOfLines={1} style={[HifiType.navLabel, { color },
+              (focused || (inCollection && children === 'Your Garden')) && styles.selectedLabel]}>
               {children}
             </Text>
-            {focused && <View style={styles.dot} />}
+            {(focused || (inCollection && children === 'Your Garden')) && <View style={styles.dot} />}
           </View>
         ),
       }}
     >
       <Tabs.Screen name="index" options={tabOptions('index', 'Feed')} />
-      <Tabs.Screen name="garden" options={tabOptions('garden', 'Your Garden')} />
+      <Tabs.Screen name="garden" options={tabOptions('garden', 'Your Garden', inCollection)} />
+      <Tabs.Screen name="collection" options={{ href: null }} />
       <Tabs.Screen
         name="camera-tab"
         options={{
@@ -87,7 +90,7 @@ const styles = StyleSheet.create({
   },
   icon: { width: 21, height: 21 },
   labelGroup: { alignItems: 'center', marginTop: 2 },
-  selectedLabel: { fontWeight: '600' },
+  selectedLabel: { fontWeight: '600', color: HifiColors.navActive },
   dot: { width: 4, height: 4, marginTop: 3, borderRadius: 2, backgroundColor: HifiColors.navActive },
   cameraButton: {
     alignSelf: 'center',
