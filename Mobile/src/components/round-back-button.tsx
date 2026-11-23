@@ -1,16 +1,18 @@
-import { Image } from 'expo-image';
+import { Image, type ImageProps } from 'expo-image';
 import { Pressable, StyleSheet } from 'react-native';
 import type { PressableProps } from 'react-native';
 
 type RoundBackButtonProps = {
   onPress: NonNullable<PressableProps['onPress']>;
   lightArrow?: boolean;
+  accessibilityLabel?: string;
+  iconSource?: ImageProps['source'];
 };
 
-export function RoundBackButton({ onPress, lightArrow = false }: RoundBackButtonProps) {
+export function RoundBackButton({ onPress, lightArrow = false, accessibilityLabel = 'Back', iconSource }: RoundBackButtonProps) {
   return (
     <Pressable
-      accessibilityLabel="Back"
+      accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"
       hitSlop={6}
       onPress={onPress}
@@ -21,7 +23,7 @@ export function RoundBackButton({ onPress, lightArrow = false }: RoundBackButton
       ]}
     >
       <Image
-        source={lightArrow ? require('./back-light.svg') : require('./back-dark.svg')}
+        source={iconSource ?? (lightArrow ? require('./back-light.svg') : require('./back-dark.svg'))}
         style={styles.icon}
       />
     </Pressable>
