@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   NativeScrollEvent,
   NativeSyntheticEvent,
-  Dimensions,
+  type LayoutChangeEvent,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -32,8 +32,6 @@ const BADGE_TYPES = [
   { label: 'Top Tenderer', color: '#D6C6EA' },
   { label: 'Pollinator Pro', color: '#F5D68A' },
 ];
-
-const ROW_HEIGHT = 104; // row height (90) + marginTop (14)
 
 function getRankTier(rank: number): 'gold' | 'silver' | 'bronze' | 'pink' {
   if (rank === 1) return 'gold';
@@ -65,15 +63,10 @@ function LeaderboardRow({
   onLayout,
 }: {
   entry: LeaderboardEntry;
-  onLayout?: (y: number) => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }) {
   return (
-    <View
-      style={styles.row}
-      onLayout={
-        onLayout ? (e) => onLayout(e.nativeEvent.layout.y) : undefined
-      }
-    >
+    <View style={styles.row} onLayout={onLayout}>
       <ImageBackground
         source={getRankShapeSource(entry.rank)}
         style={styles.rankBlock}
@@ -106,7 +99,11 @@ function LeaderboardRow({
 export default function Friends() {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
-  const [userRankVisible, setUserRankVisible] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const [listTop, setListTop] = useState<number | null>(null);
+  const [userRow, setUserRow] = useState<{ rank: number; y: number; height: number } | null>(null);
+  const [rowOffscreen, setRowOffscreen] = useState(false);
+  const scrollY = useRef(0);
   const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
   const [currentUserRank, setCurrentUserRank] = useState<LeaderboardEntry | null>(null);
   const [loading, setLoading] = useState(true);
@@ -186,18 +183,24 @@ export default function Friends() {
     ? rankings
     : rankings.slice(0, 5);
 
-  const userRowY = useRef<number | null>(null);
-  const screenHeight = Dimensions.get('window').height;
+  const renderedRank = displayedData.find(entry => entry.isCurrentUser)?.rank;
+  const rowTop = userRow && userRow.rank === renderedRank && listTop !== null
+    ? listTop + userRow.y
+    : null;
+  const rowBottom = rowTop !== null && userRow ? rowTop + userRow.height : null;
+
+  const updateVisibility = useCallback(() => {
+    setRowOffscreen(
+      viewportHeight > 0 && rowTop !== null && rowBottom !== null &&
+      (rowBottom <= scrollY.current || rowTop >= scrollY.current + viewportHeight)
+    );
+  }, [rowTop, rowBottom, viewportHeight]);
+
+  useLayoutEffect(updateVisibility, [updateVisibility]);
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (userRowY.current === null) return;
-    const scrollY = e.nativeEvent.contentOffset.y;
-    const isOnScreen =
-      scrollY + screenHeight > userRowY.current &&
-      scrollY < userRowY.current + ROW_HEIGHT;
-    if (isOnScreen !== userRankVisible) {
-      setUserRankVisible(isOnScreen);
-    }
+    scrollY.current = e.nativeEvent.contentOffset.y;
+    updateVisibility();
   };
 
   if (!fontsLoaded || (loading && rankings.length === 0)) {
@@ -213,6 +216,7 @@ export default function Friends() {
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
+        onLayout={e => setViewportHeight(e.nativeEvent.layout.height)}
         onScroll={handleScroll}
         scrollEventThrottle={16}
       >
@@ -252,15 +256,16 @@ export default function Friends() {
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.listContent}>
+            <View style={styles.listContent} onLayout={e => setListTop(e.nativeEvent.layout.y)}>
               {displayedData.map((entry) => (
                 <LeaderboardRow
-                  key={entry.rank}
+                  key={entry.isCurrentUser ? `self-${entry.rank}` : entry.rank}
                   entry={entry}
                   onLayout={
-                    currentUserRank && entry.rank === currentUserRank.rank
-                      ? (y) => {
-                          userRowY.current = y;
+                    entry.isCurrentUser
+                      ? e => {
+                          const { y, height } = e.nativeEvent.layout;
+                          setUserRow({ rank: entry.rank, y, height });
                         }
                       : undefined
                   }
@@ -280,7 +285,7 @@ export default function Friends() {
         </ImageBackground>
       </ScrollView>
 
-      {!userRankVisible && currentUserRank && (
+      {signedIn && currentUserRank && (renderedRank === undefined || (rowTop !== null && rowOffscreen)) && (
         <View style={styles.pinnedRow}>
           <LeaderboardRow entry={currentUserRank} />
         </View>
