@@ -5,7 +5,6 @@ import {
   TextInput,
   StyleSheet,
   ScrollView,
-  Image,
   ImageBackground,
   Pressable,
   Switch,
@@ -19,7 +18,11 @@ import { likeFind } from '@/lib/finds';
 import { supabase } from '@/lib/supabase';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PillButton } from '@/components/pill-button';
+import { RoundBackButton } from '@/components/round-back-button';
+import { HifiColors, HifiType } from '@/constants/hifi-theme';
 import * as Location from 'expo-location';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -43,6 +46,12 @@ const readPhotoAsBase64 = async (uri: string): Promise<string> => {
   return FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
 };
 
+// The browser date control expects a local calendar date, including near midnight.
+function localDateValue(value: Date) {
+  return [value.getFullYear(), String(value.getMonth() + 1).padStart(2, '0'),
+    String(value.getDate()).padStart(2, '0')].join('-');
+}
+
 export default function LogPlant() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -53,9 +62,7 @@ export default function LogPlant() {
   }>();
 
   const plantName = params.plantName ?? 'Monstera deliciosa';
-  const photoSource = params.photoUri
-    ? { uri: params.photoUri }
-    : require('@/assets/images/monstera.jpg');
+  const insets = useSafeAreaInsets();
 
   // Defaults to the moment the photo was taken — this screen mounts straight off the
   // camera. The picker below can still move it back for a plant spotted earlier.
@@ -253,231 +260,138 @@ export default function LogPlant() {
 
   if (saving) {
     return (
-      <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F1E6' }]}>
-        <ActivityIndicator size="large" color="#2F4F3E" />
-        <Text style={{ marginTop: 16, fontSize: 16, fontWeight: '600', color: '#2F4F3E', fontFamily: 'Author-Variable' }}>
-          Adding to your collection...
-        </Text>
+      <View style={styles.saving}>
+        <ActivityIndicator size="large" color={HifiColors.heading} />
+        <Text style={styles.savingText}>Adding to your collection...</Text>
       </View>
     );
   }
 
   return (
-    <ImageBackground
-      source={photoSource}
-      style={styles.screen}
-      imageStyle={styles.backgroundImage}
-    >
-      <LinearGradient
-        colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.65)']}
-        style={StyleSheet.absoluteFill}
-      />
-
-      <View style={styles.photoTopRow}>
-        <Pressable style={styles.circleButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
-        </Pressable>
-      </View>
-
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.photoBottom}>
-          <Text style={styles.photoTitle}>Log Your Plant</Text>
-          <Text style={styles.photoSubtitle}>{plantName}</Text>
+    <LinearGradient colors={[HifiColors.blush, HifiColors.cream, HifiColors.mint]} style={styles.screen}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
+        <View style={styles.header}>
+          <Image
+            source={require('../assets/images/log-header.webp')}
+            contentFit="cover"
+            style={styles.headerArt}
+          />
+          <LinearGradient colors={['transparent', HifiColors.tag.text]} style={styles.headerShade} />
+          <View style={{ paddingTop: insets.top + 16, paddingHorizontal: 16 }}>
+            <RoundBackButton lightArrow onPress={() => router.back()} />
+          </View>
+          <View style={styles.heading}>
+            <Text style={styles.title}>Log Your Plant</Text>
+            <Text style={styles.subtitle}>{plantName}</Text>
+          </View>
         </View>
-          {/* Date + location card */}
-          <View style={styles.card}>
-            <Text style={styles.label}>Date found</Text>
-            <Pressable
-              style={styles.dateInput}
-              onPress={() => setShowDatePicker(true)}
-            >
-              <Text style={styles.dateInputText}>{date.toLocaleDateString()}</Text>
-              <MaterialCommunityIcons name="calendar-month-outline" size={20} color="#8A8A8A" />
-            </Pressable>
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={date}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                // A find can be back-dated but not post-dated; create-find drops future
-                // dates anyway, so blocking them here avoids a silent correction.
-                maximumDate={new Date()}
-                onChange={handleDateChange}
+        <View style={styles.form}>
+          <ImageBackground source={require('../assets/images/log-date.webp')} style={styles.card} imageStyle={styles.cardArt}>
+            <Text style={styles.label}>Select date</Text>
+            {Platform.OS === 'web' ? (
+              <input
+                aria-label="Select date"
+                type="date"
+                value={localDateValue(date)}
+                max={localDateValue(new Date())}
+                style={webDateStyle}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  if (!value || !event.currentTarget.validity.valid) return;
+                  const [year, month, day] = value.split('-').map(Number);
+                  const selected = new Date(date);
+                  selected.setFullYear(year, month - 1, day);
+                  setDate(selected);
+                }}
               />
+            ) : (
+              <>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Select date, ${date.toLocaleDateString()}`}
+                  style={[styles.field, styles.inputRow]} onPress={() => setShowDatePicker(true)}>
+                  <Text style={styles.inputText}>{date.toLocaleDateString()}</Text>
+                  <Image source={require('../assets/images/log-calendar.svg')} style={styles.calendarIcon} />
+                </Pressable>
+                {showDatePicker && (
+                  <DateTimePicker value={date} mode="date" display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                    maximumDate={new Date()} onChange={handleDateChange} />
+                )}
+              </>
             )}
-
-            <Text style={[styles.label, { marginTop: 18 }]}>Log Location?</Text>
-            <Pressable style={styles.locationButton} onPress={handleLogLocation}>
-              <Text style={styles.locationButtonText}>
-                {locating ? 'Locating…' : location || 'Log Location'}
-              </Text>
-              <MaterialCommunityIcons name="map-marker" size={18} color="#FFFFFF" />
+            <Text style={[styles.label, styles.locationLabel]}>Log Location?</Text>
+            <Pressable accessibilityRole="button" disabled={locating} onPress={handleLogLocation}
+              style={[styles.field, styles.locationButton]}>
+              <Text style={styles.locationText}>{locating ? 'Locating…' : location || 'Log Location'}</Text>
+              <Image source={require('../assets/images/log-location.svg')} style={styles.locationIcon} />
             </Pressable>
-          </View>
+          </ImageBackground>
 
-          {/* Note card */}
-          <View style={styles.card}>
+          <ImageBackground source={require('../assets/images/log-note.webp')} style={styles.card} imageStyle={styles.cardArt}>
             <Text style={styles.label}>Add a Note:</Text>
-            <TextInput
-              style={styles.noteInput}
-              placeholder="Got anything to say?"
-              placeholderTextColor="#A8A8A8"
-              value={note}
-              onChangeText={setNote}
-            />
+            <TextInput accessibilityLabel="Add a Note" placeholder="Got anything to say?"
+              placeholderTextColor={HifiColors.tag.text} value={note} onChangeText={setNote}
+              style={[styles.field, styles.inputText]} />
+          </ImageBackground>
+
+          <ImageBackground source={require('../assets/images/log-preferences.webp')}
+            style={[styles.card, styles.preferences]} imageStyle={styles.cardArt}>
+            <View style={styles.preference}>
+              <Text style={styles.preferenceLabel}>Notify your friends?</Text>
+              <Switch accessibilityLabel="Notify your friends?" value={notifyFriends} onValueChange={setNotifyFriends}
+                trackColor={{ false: HifiColors.rank.silver, true: HifiColors.tag.blue }} />
+            </View>
+            <View style={styles.preference}>
+              <Text style={styles.preferenceLabel}>Consult AI Plant Doctor on Save?</Text>
+              <Switch accessibilityLabel="Consult AI Plant Doctor on Save?" value={runDoctor} onValueChange={setRunDoctor}
+                trackColor={{ false: HifiColors.rank.silver, true: HifiColors.tag.green }} />
+            </View>
+          </ImageBackground>
+
+          <View style={styles.submit}>
+            <PillButton label="Add to My Garden →" onPress={handleAddToGarden} />
           </View>
-
-          {/* Notify friends card */}
-          <View style={[styles.card, styles.notifyCard]}>
-            <Text style={styles.label}>Notify your friends?</Text>
-            <Switch
-              value={notifyFriends}
-              onValueChange={setNotifyFriends}
-              trackColor={{ false: '#D6D6D6', true: '#7FB3D9' }}
-              thumbColor="#2D9CDB"
-            />
-          </View>
-
-          {/* Consult Plant Doctor toggle */}
-          <View style={[styles.card, styles.notifyCard, { marginTop: -4 }]}>
-            <Text style={styles.label}>Consult AI Plant Doctor on Save?</Text>
-            <Switch
-              value={runDoctor}
-              onValueChange={setRunDoctor}
-              trackColor={{ false: '#D6D6D6', true: '#7C9A78' }}
-              thumbColor="#4C6355"
-            />
-          </View>
-
-          <Pressable style={styles.submitButton} onPress={handleAddToGarden}>
-            <Text style={styles.submitButtonText}>Add to My Garden</Text>
-            <MaterialCommunityIcons name="arrow-right" size={18} color="#FFFFFF" />
-          </Pressable>
-
-          <View style={{ height: 40 }} />
+        </View>
       </ScrollView>
-    </ImageBackground>
+    </LinearGradient>
   );
 }
 
+const webDateStyle: React.CSSProperties = {
+  boxSizing: 'border-box', width: '100%', maxWidth: 280, height: 44, padding: '0 12px',
+  border: `1px solid ${HifiColors.navInactive}`, borderRadius: 4,
+  backgroundColor: HifiColors.navSurface, color: HifiColors.darkHeading,
+  fontFamily: HifiType.body.fontFamily, fontSize: 16,
+};
+
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  screen: { flex: 1, backgroundColor: '#000' },
-
-  backgroundImage: {
-    width: '100%',
-    height: '100%',
-    position: 'absolute',
-  },
-  photoTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: '12%',
-    paddingBottom: 10,
-  },
-  circleButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoBottom: {
-    paddingBottom: 16,
-  },
-  photoTitle: {
-    fontFamily: 'PlayfairDisplay_700Bold',
-    fontSize: 26,
-    color: '#FFFFFF',
-  },
-  photoSubtitle: {
-    fontFamily: 'Author-Variable',
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: 2,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-  },
-
+  screen: { flex: 1 },
+  saving: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: HifiColors.cream, gap: 16 },
+  savingText: { ...HifiType.body, color: HifiColors.heading },
+  header: { minHeight: 300, overflow: 'hidden', justifyContent: 'space-between' },
+  headerArt: { position: 'absolute', bottom: 0, left: '-4%', width: '110%', height: '120%' },
+  headerShade: { ...StyleSheet.absoluteFillObject, opacity: 0.85 },
+  heading: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 40 },
+  title: { ...HifiType.display, fontSize: 24, lineHeight: 36, color: HifiColors.navSurface },
+  subtitle: { ...HifiType.body, fontSize: 14, lineHeight: 20, color: HifiColors.navSurface },
+  form: { paddingHorizontal: 18, paddingTop: 12, gap: 12 },
   card: {
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 16,
+    paddingHorizontal: 16, paddingVertical: 28, borderRadius: 24, borderWidth: 1,
+    borderColor: HifiColors.navBorder, backgroundColor: HifiColors.blush, overflow: 'hidden',
   },
-  notifyCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-
-  label: {
-    fontFamily: 'Author-Bold',
-    fontSize: 14,
-    color: '#2F4F3E',
-    marginBottom: 8,
-  },
-
-  dateInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 46,
-  },
-  dateInputText: {
-    fontSize: 14,
-    color: '#333',
-  },
-
-  locationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#D9637A',
-    borderRadius: 24,
-    height: 48,
-    paddingHorizontal: 18,
-  },
-  locationButtonText: {
-    fontFamily: 'Author-Bold',
-    fontSize: 14,
-    color: '#FFFFFF',
-  },
-
-  noteInput: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 46,
-    fontSize: 14,
-    color: '#333',
-  },
-
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#D9637A',
-    borderRadius: 26,
-    height: 52,
-    gap: 8,
-    marginTop: 4,
-  },
-  submitButtonText: {
-    fontFamily: 'Author-Bold',
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
+  cardArt: { opacity: 0.4 },
+  label: { ...HifiType.navLabel, fontSize: 14, lineHeight: 18, fontWeight: '600', color: HifiColors.heading, marginBottom: 8 },
+  field: { width: '100%', maxWidth: 280, minHeight: 44, borderRadius: 4, borderWidth: 1,
+    borderColor: HifiColors.navInactive, backgroundColor: HifiColors.navSurface, paddingHorizontal: 12 },
+  inputRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  inputText: { ...HifiType.body, fontSize: 16, color: HifiColors.darkHeading },
+  calendarIcon: { width: 16, height: 17 },
+  locationLabel: { marginTop: 14 },
+  locationButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 0, borderRadius: 15, backgroundColor: HifiColors.primary },
+  locationText: { ...HifiType.body, flex: 1, fontSize: 16, color: HifiColors.navSurface },
+  locationIcon: { width: 13, height: 18 },
+  preferences: { paddingVertical: 10 },
+  preference: { flexDirection: 'row', alignItems: 'center', maxWidth: 280, minHeight: 42, gap: 8 },
+  preferenceLabel: { ...HifiType.navLabel, flex: 1, fontSize: 14, lineHeight: 18, fontWeight: '600', color: HifiColors.heading },
+  submit: { marginHorizontal: 16, marginTop: 4 },
 });

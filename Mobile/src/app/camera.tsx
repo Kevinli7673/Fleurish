@@ -5,23 +5,54 @@ import {
   StyleSheet,
   Pressable,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system/legacy';
-import { decode } from 'base64-arraybuffer';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PillButton } from '@/components/pill-button';
+import { RoundBackButton } from '@/components/round-back-button';
+import { HifiColors, HifiType } from '@/constants/hifi-theme';
 import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Alert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
 
 export default function Camera() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
   const [identifying, setIdentifying] = useState(false);
+
+  const handleGrantAccess = async () => {
+    // Browsers only expose the camera on HTTPS or localhost. On a plain-http LAN address
+    // (e.g. testing on a phone against the dev server) the request fails silently.
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && !window.isSecureContext) {
+      Alert.alert(
+        'Camera unavailable',
+        'Your browser only allows camera access over HTTPS. Open the app from its https:// address to use the camera.'
+      );
+      return;
+    }
+    try {
+      const result = await requestPermission();
+      if (!result.granted) {
+        Alert.alert(
+          'Camera access denied',
+          result.canAskAgain
+            ? 'Fleurish needs the camera to identify plants.'
+            : 'Turn on camera access for this app in your settings, then try again.'
+        );
+      }
+    } catch {
+      Alert.alert('Camera unavailable', 'Could not open the camera on this device.');
+    }
+  };
 
   if (!permission) {
     // Permissions are still loading
@@ -31,14 +62,12 @@ export default function Camera() {
   if (!permission.granted) {
     return (
       <View style={styles.permissionContainer}>
-        <MaterialCommunityIcons name="camera-off-outline" size={48} color="#4B6355" />
+        <MaterialCommunityIcons name="camera-off-outline" size={48} color={HifiColors.heading} />
         <Text style={styles.permissionText}>
           Fleurish needs camera access to identify plants.
         </Text>
-        <Pressable style={styles.permissionButton} onPress={requestPermission}>
-          <Text style={styles.permissionButtonText}>Grant Access</Text>
-        </Pressable>
-        <Pressable style={styles.permissionBackButton} onPress={() => router.back()}>
+        <PillButton label="Grant Access" onPress={handleGrantAccess} />
+        <Pressable accessibilityRole="button" style={styles.permissionBackButton} onPress={() => router.back()}>
           <Text style={styles.permissionBackText}>Go back</Text>
         </Pressable>
       </View>
@@ -101,7 +130,7 @@ export default function Camera() {
       if (photo?.uri) {
         await processImage(photo.uri);
       }
-    } catch (err) {
+    } catch {
       Alert.alert('Something went wrong', 'Could not capture the photo. Try again.');
     }
   };
@@ -132,208 +161,68 @@ export default function Camera() {
 
   if (identifying) {
     return (
-      <View style={[styles.loadingContainer, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#E8637A" />
-        <Text style={{ marginTop: 16, fontSize: 16, fontWeight: '600', color: '#FFFFFF', fontFamily: 'Author-Bold' }}>
-          Identifying plant species...
-        </Text>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={HifiColors.primaryLight} />
+        <Text style={styles.loadingText}>Identifying plant species...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
-        {/* Top bar */}
-        <View style={styles.topBar}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-          </Pressable>
-          <Text style={styles.topBarTitle}>Identification</Text>
-          <View style={styles.backButton} />
-        </View>
-
-        {/* Viewfinder frame */}
-        <View style={styles.viewfinderWrapper}>
+      <View style={styles.preview}>
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} />
+        <View pointerEvents="none" style={styles.overlay}>
+          <Image source={require('../assets/images/identify/camera-canopy.webp')} contentFit="fill" style={styles.canopy} />
           <View style={styles.viewfinder}>
-            <View style={[styles.corner, styles.cornerTL]} />
-            <View style={[styles.corner, styles.cornerTR]} />
-            <View style={[styles.corner, styles.cornerBL]} />
-            <View style={[styles.corner, styles.cornerBR]} />
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
           </View>
+          <Text style={styles.mode}>Identify</Text>
         </View>
-
-        {/* Mode selector */}
-        <View style={styles.modeRow}>
-          <Text style={[styles.modeText, styles.modeTextActive]}>Identify</Text>
+        <View style={[styles.back, { top: insets.top + 12 }]}>
+          <RoundBackButton lightArrow onPress={() => router.back()} />
         </View>
-
-        {/* Bottom controls */}
-        <View style={styles.bottomBar}>
-          <Pressable style={styles.sideButton} onPress={handlePickFromGallery}>
-            <MaterialCommunityIcons name="image-outline" size={24} color="#FFFFFF" />
-          </Pressable>
-
-          <Pressable style={styles.shutterButton} onPress={handleCapture}>
-            <View style={styles.shutterInner} />
-          </Pressable>
-
-          <Pressable style={styles.sideButton} onPress={toggleFacing}>
-            <MaterialCommunityIcons name="camera-flip-outline" size={24} color="#FFFFFF" />
-          </Pressable>
-        </View>
-      </CameraView>
+      </View>
+      <View style={[styles.controls, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Choose a photo" style={styles.sideButton} onPress={handlePickFromGallery}>
+          <Image source={require('../assets/images/identify/gallery.svg')} style={styles.icon} />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Take a photo" style={styles.shutter} onPress={handleCapture}>
+          <LinearGradient colors={[HifiColors.primaryLight, HifiColors.primary]} style={styles.shutterInner} />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Flip camera" style={styles.sideButton} onPress={toggleFacing}>
+          <Image source={require('../assets/images/identify/flip.svg')} style={styles.icon} />
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  camera: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  permissionContainer: {
-    flex: 1,
-    backgroundColor: '#F7F1E6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  permissionText: {
-    fontSize: 15,
-    color: '#2F4F3E',
-    textAlign: 'center',
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  permissionButton: {
-    backgroundColor: '#E8A83D',
-    borderRadius: 24,
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    marginBottom: 16,
-  },
-  permissionButtonText: {
-    color: '#2F4F3E',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  permissionBackButton: {
-    paddingVertical: 8,
-  },
-  permissionBackText: {
-    color: '#4B6355',
-    textDecorationLine: 'underline',
-    fontSize: 14,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: '10%',
-    paddingHorizontal: 20,
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  topBarTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  viewfinderWrapper: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  viewfinder: {
-    width: 220,
-    height: 220,
-  },
-  corner: {
-    position: 'absolute',
-    width: 28,
-    height: 28,
-    borderColor: '#FFFFFF',
-  },
-  cornerTL: {
-    top: 0,
-    left: 0,
-    borderTopWidth: 2,
-    borderLeftWidth: 2,
-  },
-  cornerTR: {
-    top: 0,
-    right: 0,
-    borderTopWidth: 2,
-    borderRightWidth: 2,
-  },
-  cornerBL: {
-    bottom: 0,
-    left: 0,
-    borderBottomWidth: 2,
-    borderLeftWidth: 2,
-  },
-  cornerBR: {
-    bottom: 0,
-    right: 0,
-    borderBottomWidth: 2,
-    borderRightWidth: 2,
-  },
-  modeRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 20,
-    gap: 24,
-  },
-  modeText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  modeTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    textDecorationLine: 'underline',
-  },
-  bottomBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 40,
-    paddingBottom: '8%',
-  },
-  sideButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shutterButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shutterInner: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: '#E8637A',
-  },
+  container: { flex: 1, backgroundColor: 'black' },
+  preview: { flex: 1, overflow: 'hidden' },
+  overlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.15)' },
+  canopy: { position: 'absolute', top: 0, width: '100%', aspectRatio: 393 / 176 },
+  back: { position: 'absolute', left: 16 },
+  viewfinder: { width: 180, height: 180, marginTop: 50 },
+  corner: { position: 'absolute', width: 28, height: 28, borderColor: 'rgba(255,255,255,0.9)' },
+  topLeft: { top: 0, left: 0, borderTopWidth: 2, borderLeftWidth: 2 },
+  topRight: { top: 0, right: 0, borderTopWidth: 2, borderRightWidth: 2 },
+  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 2, borderLeftWidth: 2 },
+  bottomRight: { bottom: 0, right: 0, borderBottomWidth: 2, borderRightWidth: 2 },
+  mode: { ...HifiType.navLabel, position: 'absolute', bottom: 40, fontSize: 12, fontWeight: '700', color: 'white', paddingBottom: 4, borderBottomColor: 'white', borderBottomWidth: 2 },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingTop: 18 },
+  sideButton: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
+  icon: { width: 20, height: 20 },
+  shutter: { width: 68, height: 68, borderRadius: 34, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: 'rgba(255,255,255,0.6)' },
+  shutterInner: { width: 54, height: 54, borderRadius: 27 },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'black' },
+  loadingText: { ...HifiType.body, color: 'white', marginTop: 16 },
+  permissionContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: HifiColors.cream, paddingHorizontal: 32 },
+  permissionText: { ...HifiType.body, color: HifiColors.heading, textAlign: 'center', marginTop: 16, marginBottom: 24 },
+  permissionBackButton: { marginTop: 8, padding: 12 },
+  permissionBackText: { ...HifiType.body, color: HifiColors.heading, textDecorationLine: 'underline' },
 });

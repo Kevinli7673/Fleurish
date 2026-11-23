@@ -5,36 +5,26 @@ import {
   StyleSheet,
   ScrollView,
   Image,
-  ImageBackground,
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { Image as Artwork } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HifiColors, HifiType } from '@/constants/hifi-theme';
+import { RoundBackButton } from '@/components/round-back-button';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 
-// --- Mock match data. Swap for the real identification API response. ---
+// Sample result for opening the detail screen without a photo.
 const PLANT = {
   commonName: 'Monstera Deliciosa',
   scientificName: 'Monstera deliciosa',
   altName: 'Swiss Cheese Plant',
   match: '98% MATCH',
-  tags: [
-    { label: 'Tropical', color: '#DDEFD3' },
-    { label: 'Indoor', color: '#E8637A' },
-  ],
-  care: [
-    { icon: 'water-outline', label: 'Weekly', color: '#CFE3F0' },
-    { icon: 'white-balance-sunny', label: 'Indirect', color: '#F0DFB8' },
-    { icon: 'weather-windy', label: 'Humid', color: '#C8D8C2' },
-  ],
   description:
     "Monstera deliciosa, the Swiss Cheese Plant, is a beloved tropical houseplant prized for its large, glossy, perforated leaves. Native to Central America, it thrives in humid environments with bright, indirect light.",
   family: 'Araceae',
-  spottedBy: [
-    { name: 'hhh', avatar: require('@/assets/images/calathea.jpg') },
-    { name: 'Maya', avatar: require('@/assets/images/calathea.jpg') },
-  ],
 };
 
 function getFamilyFromScientificName(scientificName?: string): string {
@@ -82,6 +72,7 @@ function cleanCommonName(commonName: string, scientificName: string): string {
 
 export default function PlantResult() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ photoUri?: string; result?: string }>();
   const [spotters, setSpotters] = useState<any[]>([]);
   const [liked, setLiked] = useState(false);
@@ -103,16 +94,13 @@ export default function PlantResult() {
   const plantData = {
     scientificName: rawScientific,
     commonName: cleanCommonName(rawCommon, rawScientific),
-    altName: rawScientific,
     match: apiPlant ? `${Math.round(apiPlant.confidence * 100)}% MATCH` : PLANT.match,
-    tags: apiPlant ? [
-      { label: 'Species Match', color: '#E8637A' },
-    ] : PLANT.tags.filter(t => t.label !== 'AI Identified'),
-    care: apiPlant ? [
-      { icon: 'water-outline', label: apiPlant.water_requirement || 'Regular', color: '#CFE3F0' },
-      { icon: 'white-balance-sunny', label: apiPlant.light_requirement || 'Indirect', color: '#F0DFB8' },
-      { icon: 'weather-windy', label: 'Humid', color: '#C8D8C2' },
-    ] : PLANT.care,
+    tags: apiPlant ? ['Species Match'] : ['Tropical', 'Indoor'],
+    care: [
+      { icon: require('../assets/images/identify/water.svg'), label: apiPlant ? apiPlant.water_requirement || 'Regular' : 'Weekly', color: HifiColors.tag.blue },
+      { icon: require('../assets/images/identify/sun.svg'), label: apiPlant?.light_requirement || 'Indirect', color: HifiColors.rank.gold },
+      { icon: require('../assets/images/identify/wind.svg'), label: 'Humid', color: HifiColors.tag.green },
+    ],
     description: apiPlant?.care_tips ?? PLANT.description,
     family: apiPlant?.family || (apiPlant ? getFamilyFromScientificName(apiPlant.scientific_name) : PLANT.family),
     plantId: apiPlant?.plant_id ?? null,
@@ -149,356 +137,144 @@ export default function PlantResult() {
     }, [plantData.plantId])
   );
 
-  const displayedSpotters = spotters;
-
   const photoSource = params.photoUri
     ? { uri: params.photoUri }
-    : require('@/assets/images/monstera.jpg'); // fallback sample photo
+    : require('../assets/images/identify/sample-foliage.webp');
+  const title = apiPlant ? plantData.commonName : PLANT.commonName;
 
   return (
-    <View style={styles.screen}>
-      {/* Captured photo header */}
-      <View style={styles.photoHeader}>
-        <Image source={photoSource} style={StyleSheet.absoluteFill} resizeMode="cover" />
-        <LinearGradient
-          colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.55)']}
-          style={StyleSheet.absoluteFill}
-        />
-
-        <View style={styles.photoTopRow}>
-          <Pressable style={styles.circleButton} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
-          </Pressable>
-          <View style={styles.photoTopRight}>
-            {/* No bookmark here: "Want to Have" is for plants you haven't found. This is your
-                own sighting, so wanting it makes no sense. Bookmarking lives on the feed,
-                where the find belongs to someone else. */}
+    <LinearGradient colors={[HifiColors.blush, HifiColors.cream, HifiColors.mint]} style={styles.screen}>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
+        <View style={[styles.hero, { paddingTop: insets.top + 16 }]}>
+          <Image source={photoSource} style={styles.heroPhoto} resizeMode="cover" />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.08)', 'transparent', 'rgba(60,20,30,0.55)']}
+            locations={[0, 0.4, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.heroControls}>
+            <RoundBackButton lightArrow onPress={() => router.back()} />
             <Pressable
-              style={styles.circleButton}
-              onPress={() => setLiked(prev => !prev)}
               accessibilityRole="button"
               accessibilityLabel={liked ? 'Remove from favorites' : 'Add to favorites'}
               accessibilityState={{ selected: liked }}
+              hitSlop={6}
+              onPress={() => setLiked(prev => !prev)}
+              style={styles.favorite}
             >
-              <MaterialCommunityIcons
-                name={liked ? "heart" : "heart-outline"}
-                size={18}
-                color={liked ? "#D9637A" : "#FFFFFF"}
-              />
+              <MaterialCommunityIcons name={liked ? 'heart' : 'heart-outline'} size={18} color={liked ? HifiColors.primary : 'white'} />
             </Pressable>
           </View>
-        </View>
-
-        <View style={styles.photoBottom}>
-          <View style={styles.tagRow}>
-            {plantData.tags.map((tag) => (
-              <View key={tag.label} style={[styles.tag, { backgroundColor: tag.color }]}>
-                <Text
-                  style={[
-                    styles.tagText,
-                    { color: (tag.label === 'Indoor' || tag.label === 'Species Match') ? '#FFFFFF' : '#2F4F3E' },
-                  ]}
-                >
-                  {tag.label}
-                </Text>
-              </View>
-            ))}
-          </View>
-          <Text style={styles.photoTitle}>{plantData.scientificName}</Text>
-          <Text style={styles.photoSubtitle}>{plantData.commonName}</Text>
-        </View>
-      </View>
-
-      {/* Content over the flower-gradient background */}
-      <ImageBackground
-        source={require('@/assets/images/waterlilies.png')}
-        style={styles.contentBackground}
-        resizeMode="cover"
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Match card */}
-          <View style={styles.matchCard}>
-            <Text style={styles.matchLabel}>{plantData.match}</Text>
-            <Text style={styles.matchTitle}>{plantData.scientificName}</Text>
-            <Text style={styles.matchSubtitle}>{plantData.commonName}</Text>
-
-            <View style={styles.careRow}>
-              {plantData.care.map((item) => (
-                <View
-                  key={item.label}
-                  style={[styles.carePill, { backgroundColor: item.color }]}
-                >
-                  <MaterialCommunityIcons
-                    name={item.icon as any}
-                    size={20}
-                    color="#2F4F3E"
-                  />
-                  <Text style={styles.carePillText}>{item.label}</Text>
+          <View style={styles.heroCaption}>
+            <View style={styles.tags}>
+              {plantData.tags.map(tag => (
+                <View key={tag} style={[styles.tag, tag === 'Tropical' && styles.tropicalTag]}>
+                  <Text style={styles.tagText}>{tag}</Text>
                 </View>
               ))}
             </View>
+            <Text style={styles.heroTitle}>{title}</Text>
+            <Text style={styles.heroSubtitle}>{plantData.scientificName}</Text>
+          </View>
+        </View>
+        <View style={styles.content}>
+          <Artwork source={require('../assets/images/identify/purple-flower.webp')} style={styles.purpleFlower} />
+          <Artwork source={require('../assets/images/identify/pink-flower.webp')} style={styles.pinkFlower} />
 
+          <View style={styles.matchCard}>
+            <LinearGradient colors={[HifiColors.coral, HifiColors.primaryLight]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.matchWash} />
+            <Image source={require('@/assets/images/waterlilies.png')} resizeMode="cover" style={styles.cardPainting} />
+            <Text style={styles.confidence}>{plantData.match}</Text>
+            <Text style={styles.matchTitle}>{title}</Text>
+            <Text style={styles.matchSubtitle}>{apiPlant ? plantData.scientificName : PLANT.altName}</Text>
+            <View style={styles.facts}>
+              {plantData.care.map(item => (
+                <View key={item.icon} style={[styles.fact, { backgroundColor: item.color + '80' }]}>
+                  <Artwork source={item.icon} style={styles.smallIcon} />
+                  <Text style={styles.factText}>{item.label}</Text>
+                </View>
+              ))}
+            </View>
             <Pressable
-              style={styles.logButton}
-              onPress={() =>
-                router.push({
-                  pathname: '/plantlog',
-                  params: {
-                    photoUri: params.photoUri,
-                    plantName: plantData.commonName,
-                    plantId: plantData.plantId,
-                    liked: liked ? 'true' : 'false',
-                  },
-                })
-              }
+              accessibilityRole="button"
+              accessibilityLabel="Log Plant"
+              onPress={() => router.push({
+                pathname: '/plantlog',
+                params: {
+                  photoUri: params.photoUri,
+                  plantName: plantData.commonName,
+                  plantId: plantData.plantId,
+                  liked: liked ? 'true' : 'false',
+                },
+              })}
             >
-              <Text style={styles.logButtonText}>Log Plant</Text>
-              <MaterialCommunityIcons name="arrow-right" size={18} color="#FFFFFF" />
+              <LinearGradient colors={[HifiColors.primaryLight, HifiColors.primary]} style={styles.logButton}>
+                <Text style={styles.logLabel}>Log Plant →</Text>
+              </LinearGradient>
             </Pressable>
           </View>
 
-          {/* About this plant */}
           <View style={styles.aboutCard}>
-            <View style={styles.aboutHeaderRow}>
-              <MaterialCommunityIcons name="leaf" size={16} color="#4B6355" />
-              <Text style={styles.aboutHeader}>About this plant</Text>
+            <View style={styles.aboutHeading}>
+              <Artwork source={require('../assets/images/identify/leaf.svg')} style={styles.smallIcon} />
+              <Text style={styles.aboutTitle}>About this plant</Text>
             </View>
-            <Text style={styles.aboutText}>{plantData.description}</Text>
-            <Text style={styles.aboutFamily}>Family: {plantData.family}</Text>
+            <Text style={styles.description}>{plantData.description}</Text>
+            <Text style={styles.family}>Family: {plantData.family}</Text>
           </View>
 
-          {/* Spotted by other users */}
-          <Text style={styles.spottedHeader}>SPOTTED BY OTHER USERS</Text>
-          <View style={styles.spottedRow}>
-            {displayedSpotters.length > 0 ? (
-              displayedSpotters.map((spotter, idx) => (
-                <View key={spotter.name + '-' + idx} style={styles.spottedItem}>
-                  <Image source={spotter.avatar} style={styles.spottedAvatar} />
-                  <Text style={styles.spottedName}>{spotter.name}</Text>
-                </View>
-              ))
-            ) : (
-              <Text style={[styles.spottedName, { fontStyle: 'italic', opacity: 0.7, paddingLeft: 10, color: '#4B6355' }]}>
-                Be the first to log this plant species!
-              </Text>
-            )}
+          <Text style={styles.spottedHeading}>SPOTTED BY FRIENDS</Text>
+          <View style={styles.spotters}>
+            {spotters.length ? spotters.map((spotter, index) => (
+              <View key={spotter.name + index} style={styles.spotter}>
+                <Image source={spotter.avatar} style={styles.avatar} />
+                <Text style={styles.spotterName}>{spotter.name}</Text>
+              </View>
+            )) : <Text style={styles.empty}>Be the first to log this plant species!</Text>}
           </View>
-
-          <View style={{ height: 40 }} />
-        </ScrollView>
-      </ImageBackground>
-    </View>
+        </View>
+      </ScrollView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#000' },
-
-  photoHeader: {
-    height: 300,
-    justifyContent: 'space-between',
-  },
-  photoTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: '10%',
-  },
-  photoTopRight: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  circleButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  photoBottom: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  tagRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
-  tag: {
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  tagText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 12,
-  },
-  photoTitle: {
-    fontFamily: 'PlayfairDisplay_700Bold',
-    fontSize: 28,
-    color: '#FFFFFF',
-  },
-  photoSubtitle: {
-    fontFamily: 'Author-Variable',
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.85)',
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-
-  contentBackground: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-
-  matchCard: {
-    backgroundColor: 'rgba(255,255,255,0.6)',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
-  },
-  matchLabel: {
-    fontFamily: 'Author-Variable',
-    fontSize: 12,
-    color: '#4B8A5A',
-    marginBottom: 6,
-  },
-  matchTitle: {
-    fontFamily: 'PlayfairDisplay_700Bold',
-    fontSize: 24,
-    color: '#2F4F3E',
-  },
-  matchSubtitle: {
-    fontFamily: 'Author-Variable',
-    fontSize: 14,
-    color: '#D9637A',
-    marginBottom: 16,
-  },
-  careRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 18,
-  },
-  carePill: {
-    flex: 1,
-    borderRadius: 14,
-    alignItems: 'center',
-    paddingVertical: 12,
-    gap: 4,
-  },
-  carePillText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 12,
-    color: '#2F4F3E',
-  },
-  logButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#D9637A',
-    borderRadius: 26,
-    height: 52,
-    gap: 8,
-  },
-  logButtonText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
-
-  aboutCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-  },
-  aboutHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  aboutHeader: {
-    fontFamily: 'Author-Variable',
-    fontSize: 15,
-    color: '#2F4F3E',
-  },
-  aboutText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 13,
-    color: '#3A3A3A',
-    lineHeight: 19,
-    marginBottom: 10,
-  },
-  aboutFamily: {
-    fontFamily: 'Author-Variable',
-    fontSize: 12,
-    color: '#D9637A',
-  },
-
-  doctorCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.75)',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  doctorText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 13.5,
-    color: '#1C3127',
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  doctorButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#7C9A78',
-    borderRadius: 26,
-    height: 48,
-    gap: 8,
-  },
-  doctorButtonText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 15,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-
-  spottedHeader: {
-    fontFamily: 'Author-Variable',
-    fontSize: 13,
-    color: '#4B6355',
-    letterSpacing: 0.5,
-    marginBottom: 14,
-  },
-  spottedRow: {
-    flexDirection: 'row',
-    gap: 24,
-  },
-  spottedItem: {
-    alignItems: 'center',
-  },
-  spottedAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginBottom: 6,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-  },
-  spottedName: {
-    fontFamily: 'Author-Variable',
-    fontSize: 12,
-    color: '#2F4F3E',
-  },
+  screen: { flex: 1 },
+  hero: { minHeight: 300, justifyContent: 'space-between' },
+  heroPhoto: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  heroControls: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16 },
+  favorite: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
+  heroCaption: { padding: 20 },
+  tags: { flexDirection: 'row', gap: 8 },
+  tag: { backgroundColor: HifiColors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  tropicalTag: { backgroundColor: HifiColors.heading },
+  tagText: { ...HifiType.tag, color: 'white', fontSize: 11, lineHeight: 17 },
+  heroTitle: { ...HifiType.display, fontSize: 24, lineHeight: 36, color: 'white', marginTop: 4 },
+  heroSubtitle: { ...HifiType.body, fontSize: 13, lineHeight: 20, color: 'white' },
+  content: { paddingHorizontal: 20, paddingTop: 12, overflow: 'hidden' },
+  purpleFlower: { position: 'absolute', left: 0, top: 203, width: 89, height: 135 },
+  pinkFlower: { position: 'absolute', right: 0, bottom: 0, width: 99, height: 155 },
+  matchCard: { borderRadius: 24, borderWidth: 1, borderColor: HifiColors.navBorder, overflow: 'hidden', padding: 16 },
+  matchWash: { ...StyleSheet.absoluteFillObject, opacity: 0.25 },
+  cardPainting: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', opacity: 0.2 },
+  confidence: { ...HifiType.tag, fontSize: 11, lineHeight: 24, letterSpacing: 0.66, color: HifiColors.heading },
+  matchTitle: { ...HifiType.display, fontSize: 20, lineHeight: 32, color: HifiColors.tag.text },
+  matchSubtitle: { ...HifiType.body, fontSize: 12, lineHeight: 20, color: HifiColors.primary },
+  facts: { flexDirection: 'row', gap: 8, marginVertical: 12 },
+  fact: { flex: 1, borderRadius: 12, paddingHorizontal: 4, paddingVertical: 8, gap: 3, alignItems: 'center' },
+  smallIcon: { width: 16, height: 16 },
+  factText: { ...HifiType.navLabel, textAlign: 'center', color: HifiColors.heading },
+  logButton: { minHeight: 45, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
+  logLabel: { ...HifiType.button, fontSize: 14, color: 'white' },
+  aboutCard: { marginTop: 12, marginHorizontal: 4, borderRadius: 16, padding: 16, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: HifiColors.navBorder },
+  aboutHeading: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  aboutTitle: { ...HifiType.button, fontSize: 14, color: HifiColors.tag.text },
+  description: { ...HifiType.body, fontSize: 14, lineHeight: 21, color: HifiColors.tag.text },
+  family: { ...HifiType.body, fontSize: 12, marginTop: 10, color: HifiColors.tag.text },
+  spottedHeading: { ...HifiType.tag, fontSize: 12, letterSpacing: 0.72, color: HifiColors.tag.text, marginTop: 12, marginBottom: 8 },
+  spotters: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 4 },
+  spotter: { alignItems: 'center', maxWidth: 80 },
+  avatar: { width: 48, height: 48, borderRadius: 14 },
+  spotterName: { ...HifiType.tag, textAlign: 'center', marginTop: 6, color: HifiColors.tag.text },
+  empty: { ...HifiType.body, fontSize: 14, color: HifiColors.tag.text },
 });
