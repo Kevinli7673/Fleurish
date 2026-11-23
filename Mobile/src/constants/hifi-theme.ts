@@ -29,6 +29,13 @@ export const HifiColors = {
   navBorder: 'rgba(217, 99, 122, 0.1)',
   navActive: '#BFD0E0',
   navInactive: '#B8948E',
+  sage: '#8BAF8B',
+  leaf: '#5F7A5B',
+  danger: '#9B2214',
+  inputBorder: '#D9D9D9',
+  inputHint: 'rgba(10, 10, 10, 0.5)',
+  statsPink: 'rgba(238, 72, 104, 0.3)',
+  statsPeach: 'rgba(255, 171, 97, 0.3)',
   rank: { gold: '#F2B84B', silver: '#CEC8C8', bronze: '#DE9036', pink: '#F69DAE' },
   tag: { pink: '#FAC0D4', blue: '#BCDAF0', green: '#A7E0A9', purple: '#E5C1EB', text: '#5A3535' },
 } as const;
