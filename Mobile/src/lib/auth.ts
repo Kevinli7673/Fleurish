@@ -63,7 +63,10 @@ export async function signInWithProvider(provider: OAuthProvider): Promise<boole
   // On web Supabase redirects the whole page, and the client picks the session back up
   // on the way back through detectSessionInUrl. Nothing to exchange by hand.
   if (Platform.OS === 'web') {
-    const { error } = await supabase.auth.signInWithOAuth({ provider });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo: window.location.origin },
+    });
     if (error) throw new Error(`Could not sign in with ${label}.`);
     return true;
   }
