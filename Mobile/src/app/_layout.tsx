@@ -1,13 +1,16 @@
+import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import type { Session } from '@supabase/supabase-js';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Analytics } from '@/components/analytics';
+import { HifiFonts } from '@/constants/hifi-theme';
 import { ProfileProvider, useProfile } from '@/context/profilecontext';
 import { useSession } from '@/hooks/use-session';
 import { supabase } from '@/lib/supabase';
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts(HifiFonts);
   const { session, isLoading } = useSession();
 
   // Analytics sits outside the loading branch so the first page view is still
@@ -15,7 +18,7 @@ export default function RootLayout() {
   return (
     <>
       <Analytics />
-      {isLoading ? (
+      {isLoading || (!fontsLoaded && !fontError) ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FCEDEB' }}>
           <ActivityIndicator size="large" color="#1B391C" />
         </View>
