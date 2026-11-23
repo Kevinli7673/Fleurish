@@ -1,26 +1,55 @@
 import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  ImageBackground,
-  Image,
-  Pressable,
-  ScrollView,
-  ActivityIndicator,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useFonts } from 'expo-font';
-import {
-  PlayfairDisplay_700Bold,
-} from '@expo-google-fonts/playfair-display';
-import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+import { PillButton } from '@/components/pill-button';
+import { HifiColors as colors, HifiType } from '@/constants/hifi-theme';
 import { useProfile } from '@/context/profilecontext';
 import { Alert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
 import { getProfile, type ProfileWithStats } from '@/lib/profile';
+
+const art = {
+  vine: require('../../assets/images/profile/vine.svg'),
+  pinkFlower: require('../../assets/images/profile/flower-pink.svg'),
+  greenFlower: require('../../assets/images/profile/flower-green.svg'),
+  divider: require('../../assets/images/profile/flower-divider.svg'),
+  bell: require('../../assets/images/profile/bell.svg'),
+  gear: require('../../assets/images/profile/gear.svg'),
+  mail: require('../../assets/images/profile/mail.svg'),
+  lock: require('../../assets/images/profile/lock.svg'),
+  eyeOff: require('../../assets/images/profile/eye-off.svg'),
+  painting: require('@/assets/images/FlowerMonet.png'),
+};
+
+function ProfileAction({ label, onPress, danger, compact, accessibilityLabel }: {
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+  compact?: boolean;
+  accessibilityLabel?: string;
+}) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label}
+      onPress={onPress} hitSlop={5}
+      style={({ pressed }) => [styles.action, compact && styles.compact, danger && styles.danger, pressed && styles.pressed]}>
+      <Text style={styles.actionLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function SectionHeading({ children }: { children: string }) {
+  return (
+    <View style={styles.sectionHeading}>
+      <Image source={art.gear} style={styles.gear} />
+      <Text accessibilityRole="header" style={styles.heading}>{children}</Text>
+    </View>
+  );
+}
 
 export default function Profile() {
   const router = useRouter();
@@ -125,442 +154,169 @@ export default function Profile() {
     );
   };
 
-  const [fontsLoaded] = useFonts({
-    Mootjungle: require('@/assets/fonts/Mootjungle.ttf'),
-    PlayfairDisplay_700Bold,
-    'Author-Variable': require('@/assets/fonts/Author-Variable.ttf'),
-  });
+  const { top } = useSafeAreaInsets();
 
-  if (!fontsLoaded || loading) {
-    return (
-      <View style={[styles.loadingContainer, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color="#2F4F3E" />
-      </View>
-    );
+  if (loading) {
+    return <View style={styles.loading}><ActivityIndicator size="large" color={colors.heading} /></View>;
   }
 
-  if (signedIn === false) {
-    return (
-      <ImageBackground
-        source={require('@/assets/images/profile.png')}
-        style={styles.background}
-        resizeMode="cover"
-      >
-        <LinearGradient
-          colors={['#FCEDEB', '#F7F1E6', '#F6FDF3']}
-          locations={[0, 0.5, 1]}
-          style={[StyleSheet.absoluteFill, { opacity: 0.3 }]}
-          pointerEvents="none"
-        />
-        <View style={styles.header}>
-          <Text style={styles.wordmark}>Fleurish.</Text>
-        </View>
-        <View style={styles.guestPrompt}>
-          <MaterialCommunityIcons name="account-circle-outline" size={56} color="#2F4F3E" style={{ opacity: 0.6 }} />
-          <Text style={styles.guestPromptTitle}>Sign in to view your profile</Text>
-          <Text style={styles.guestPromptSubtitle}>
-            Track your finds, streaks, and friends by signing in or creating an account.
-          </Text>
-          <Pressable style={styles.guestPromptButton} onPress={() => router.push('/login')}>
-            <Text style={styles.guestPromptButtonText}>Sign In</Text>
-          </Pressable>
-          <Pressable style={styles.guestPromptSecondaryButton} onPress={() => router.push('/signup')}>
-            <Text style={styles.guestPromptSecondaryButtonText}>Create an account</Text>
-          </Pressable>
-        </View>
-      </ImageBackground>
-    );
-  }
+  const guest = signedIn === false;
 
   return (
-    <ImageBackground
-      source={require('@/assets/images/profile.png')}
-      style={styles.background}
-      resizeMode="cover"
-    >
-      <LinearGradient
-        colors={['#FCEDEB', '#F7F1E6', '#F6FDF3']}
-        locations={[0, 0.5, 1]}
-        style={[StyleSheet.absoluteFill, { opacity: 0.3 }]}
-        pointerEvents="none"
-      />
-
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.wordmark}>Fleurish.</Text>
-          <Pressable
-            style={styles.bellButton}
-            onPress={() => router.push('/notifications')}
-          >
-            <Ionicons name="notifications-outline" size={20} color="#2F4F3E" />
-          </Pressable>
-        </View>
-
-        {/* Profile card */}
-        <View style={styles.profileBanner}>
-          <Image
-            source={require('@/assets/images/FlowerMonet.png')}
-            style={[styles.profileBannerImage, { opacity: 0.4 }]}
-            resizeMode="cover"
-          />
-          {profileContext.photoUri ? (
-            <Image source={{ uri: profileContext.photoUri }} style={styles.avatarImage} />
-          ) : (
-            <View style={styles.avatar} />
+    <LinearGradient colors={[colors.blush, colors.cream, colors.mint]} style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={[styles.header, { paddingTop: Math.max(48, top), minHeight: Math.max(152, top + 104) }]}>
+          <Image source={art.vine} contentFit="fill" style={styles.vine} />
+          <Image source={art.greenFlower} style={[styles.headerFlower, styles.greenFlower]} />
+          <Image source={art.pinkFlower} style={[styles.headerFlower, styles.pinkFlower]} />
+          <Text accessibilityRole="header" style={styles.wordmark}>Fleurish.</Text>
+          {!guest && (
+            <Pressable accessibilityRole="button" accessibilityLabel="Notifications" hitSlop={6}
+              style={styles.bell} onPress={() => router.push('/notifications')}>
+              <Image source={art.bell} style={styles.bellIcon} />
+            </Pressable>
           )}
-          <Text style={styles.name}>{profileData?.username ?? 'Anonymous'}</Text>
-          <Text style={styles.location}>{profileContext.location}</Text>
-          <Text style={styles.bio}>{profileContext.bio || 'No bio set.'}</Text>
-          <Pressable
-            style={styles.editProfileButton}
-            onPress={() => router.push('/editprofile')}
-          >
-            <Text style={styles.editProfileButtonText}>Edit Profile</Text>
-          </Pressable>
         </View>
 
-        {/* Stats banner */}
-        <LinearGradient
-          colors={['rgba(238, 72, 104, 0.6)', 'rgba(255, 171, 97, 0.6)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.statsBanner}
-        >
-          <Text style={styles.statsText}>{profileData ? `${profileData.friendsCount} Friends` : '0 Friends'}</Text>
-          <Text style={styles.statsDot}>•</Text>
-          <Text style={styles.statsText}>{profileData ? `${profileData.findsCount} Plants logged` : '0 Plants logged'}</Text>
-        </LinearGradient>
-
-        {/* Settings */}
-        <View style={styles.settingsSection}>
-          <View style={styles.sectionHeaderRow}>
-            <MaterialCommunityIcons name="cog-outline" size={18} color="#2F4F3E" />
-            <Text style={styles.sectionHeaderText}>Settings</Text>
-          </View>
-
-          <Text style={styles.fieldLabel}>Change email</Text>
-          <View style={styles.fieldRow}>
-            <View style={styles.inputWrapper}>
-              <MaterialCommunityIcons
-                name="email-outline"
-                size={18}
-                color="#8A8A8A"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                placeholderTextColor="#A8A8A8"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-              />
-            </View>
-            <Pressable style={styles.updateButton} onPress={handleUpdateEmail}>
-              <Text style={styles.updateButtonText}>Update</Text>
-            </Pressable>
-          </View>
-
-          <Text style={styles.fieldLabel}>Change password:</Text>
-          <View style={styles.fieldRow}>
-            <View style={styles.inputWrapper}>
-              <MaterialCommunityIcons
-                name="lock-outline"
-                size={18}
-                color="#8A8A8A"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Enter password"
-                placeholderTextColor="#A8A8A8"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-              />
-              <Pressable onPress={() => setShowPassword(!showPassword)}>
-                <MaterialCommunityIcons
-                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={18}
-                  color="#8A8A8A"
-                />
-              </Pressable>
-            </View>
-            <Pressable style={styles.updateButton} onPress={handleUpdatePassword}>
-              <Text style={styles.updateButtonText}>Update</Text>
-            </Pressable>
-          </View>
-
-          <View style={[styles.sectionHeaderRow, { marginTop: 28 }]}>
-            <MaterialCommunityIcons name="cog-outline" size={18} color="#2F4F3E" />
-            <Text style={styles.sectionHeaderText}>Big Bad Settings</Text>
-          </View>
-
-          <Pressable style={styles.deleteButton} onPress={handleDeleteAccount}>
-            <Text style={styles.deleteButtonText}>Delete Account</Text>
-          </Pressable>
-
-          <Pressable style={[styles.deleteButton, { backgroundColor: '#4B6355', marginTop: 12 }]} onPress={handleSignOut}>
-            <Text style={styles.deleteButtonText}>Log Out</Text>
-          </Pressable>
+        <View style={[styles.banner, guest && styles.guestBanner]}>
+          <Image source={art.painting} contentFit="cover" style={[StyleSheet.absoluteFill, styles.painting]} />
+          {guest ? (
+            <>
+              <MaterialCommunityIcons name="account-circle-outline" size={56} color={colors.heading} />
+              <Text style={styles.name}>Sign in to view your profile</Text>
+              <Text style={styles.guestCopy}>Track your finds, streaks, and friends by signing in or creating an account.</Text>
+              <View style={styles.guestActions}>
+                <PillButton label="Sign In" onPress={() => router.push('/login')} />
+                <Pressable accessibilityRole="link" style={styles.link} onPress={() => router.push('/signup')}>
+                  <Text style={styles.linkText}>Create an account</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <>
+              {profileContext.photoUri
+                ? <Image source={{ uri: profileContext.photoUri }} style={styles.avatar} />
+                : <View style={styles.avatar} />}
+              <Text style={styles.name}>{profileData?.username ?? 'Anonymous'}</Text>
+              <Text style={styles.location}>{profileContext.location}</Text>
+              <Text style={styles.bio}>{profileContext.bio || 'No bio set.'}</Text>
+              <ProfileAction label="Edit Profile" compact onPress={() => router.push('/editprofile')} />
+            </>
+          )}
         </View>
 
-        {/* Spacer so content isn't hidden behind the shared tab bar */}
-        <View style={{ height: 40 }} />
+        {!guest && (
+          <>
+            <LinearGradient colors={[colors.statsPink, colors.statsPeach]} style={styles.stats}>
+              <Text style={styles.stat}>{profileData?.friendsCount ?? 0} Friends</Text>
+              <Image source={art.divider} style={styles.divider} />
+              <Text style={styles.stat}>{profileData?.findsCount ?? 0} Plants logged</Text>
+            </LinearGradient>
+
+            <View style={styles.settings}>
+              <SectionHeading>Settings</SectionHeading>
+              <Text style={styles.fieldLabel}>Change email</Text>
+              <View style={styles.row}>
+                <View style={styles.inputWrapper}>
+                  <Image source={art.mail} style={styles.inputIcon} />
+                  <TextInput accessibilityLabel="Change email" style={styles.input} placeholder="Enter your email"
+                    placeholderTextColor={colors.inputHint} value={email} onChangeText={setEmail}
+                    autoCapitalize="none" keyboardType="email-address" />
+                </View>
+                <ProfileAction label="Update" accessibilityLabel="Update email" onPress={handleUpdateEmail} />
+              </View>
+              <Text style={styles.fieldLabel}>Change password:</Text>
+              <View style={styles.row}>
+                <View style={styles.inputWrapper}>
+                  <Image source={art.lock} style={styles.inputIcon} />
+                  <TextInput accessibilityLabel="Change password" style={styles.input} placeholder="Enter password"
+                    placeholderTextColor={colors.inputHint} value={password} onChangeText={setPassword}
+                    autoCapitalize="none" secureTextEntry={!showPassword} />
+                  <Pressable accessibilityRole="button" accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                    hitSlop={6} onPress={() => setShowPassword(value => !value)}>
+                    {showPassword
+                      ? <MaterialCommunityIcons name="eye-outline" size={16} color={colors.heading} />
+                      : <Image source={art.eyeOff} style={styles.eye} />}
+                  </Pressable>
+                </View>
+                <ProfileAction label="Update" accessibilityLabel="Update password" onPress={handleUpdatePassword} />
+              </View>
+
+              <View style={styles.dangerSection}>
+                <SectionHeading>Big Bad Settings</SectionHeading>
+                <View style={styles.accountActions}>
+                  <ProfileAction label="Delete Account" danger onPress={handleDeleteAccount} />
+                  <Pressable accessibilityRole="button" style={styles.link} onPress={handleSignOut}>
+                    <Text style={styles.linkText}>Log Out</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
-    </ImageBackground>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#F7F1E6',
-  },
-  background: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  guestPrompt: {
-    marginTop: 40,
-    marginHorizontal: 24,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingVertical: 40,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-  },
-  guestPromptTitle: {
-    fontFamily: 'Author-Variable',
-    fontSize: 20,
-    color: '#2F4F3E',
-    marginTop: 14,
-    textAlign: 'center',
-  },
-  guestPromptSubtitle: {
-    fontFamily: 'Author-Variable',
-    fontSize: 13,
-    color: '#4B6355',
-    opacity: 0.85,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  guestPromptButton: {
-    backgroundColor: '#E8A83D',
-    borderRadius: 26,
-    height: 52,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  guestPromptButtonText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 16,
-    color: '#2F4F3E',
-  },
-  guestPromptSecondaryButton: {
-    marginTop: 12,
-    height: 52,
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  guestPromptSecondaryButtonText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 14,
-    color: '#4B6355',
-    textDecorationLine: 'underline',
-  },
+  screen: { flex: 1 },
+  scrollContent: { paddingBottom: 24 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.cream },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingTop: '8%',
-    paddingBottom: 16,
+    overflow: 'hidden', paddingLeft: 16, paddingRight: 34, paddingBottom: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
-  wordmark: {
-    fontFamily: 'Mootjungle',
-    fontSize: 30,
-    color: '#2F4F3E',
+  vine: {
+    position: 'absolute', width: '106%', height: 57, left: '-1.5%', top: 66,
+    transform: [{ rotate: '-19.09deg' }],
   },
-  bellButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  headerFlower: { position: 'absolute', width: 40, height: 38 },
+  greenFlower: { left: '70%', top: 15 },
+  pinkFlower: { left: '55%', top: 82 },
+  wordmark: { ...HifiType.display, color: colors.heading },
+  bell: {
+    width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.navSurface,
   },
-  profileBanner: {
-    width: '100%',
-    alignSelf: 'stretch',
-    height: 340,
-    overflow: 'hidden',
-    alignItems: 'center',
-    paddingTop: 30,
-    paddingBottom: 24,
-    paddingHorizontal: 24,
-    borderRadius: 20,
-    position: 'relative',
+  bellIcon: { width: 16, height: 16 },
+  banner: {
+    minHeight: 297, alignItems: 'center', paddingHorizontal: 20, paddingTop: 26, paddingBottom: 10,
   },
-  profileBannerImage: {
-    position: 'absolute',
-    width: '180%',
-    height: '180%',
-    top: '-40%',
-    left: '-40%',
-    resizeMode: 'cover',
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#7C9A78',
-    marginBottom: 14,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-  },
-  avatarImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 14,
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-  },
-  name: {
-    fontFamily: 'Author-Variable',
-    fontSize: 26,
-    color: '#2F4F3E',
-    marginBottom: 4,
-  },
-  location: {
-    fontFamily: 'Author-Variable',
-    fontSize: 18,
-    color: '#2F4F3E',
-    marginBottom: 8,
-  },
-  bio: {
-    fontFamily: 'Author-Variable',
-    fontSize: 13,
-    color: '#2F4F3E',
-    textAlign: 'center',
-    marginBottom: 16,
-    opacity: 0.85,
-  },
-  editProfileButton: {
-    backgroundColor: '#7C9A78',
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-  },
-  editProfileButtonText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 14,
-    color: '#FFFFFF',
-  },
-  statsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-  },
-  statsText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 14,
-    color: '#2F4F3E',
-  },
-  statsDot: {
-    color: '#E8637A',
-    marginHorizontal: 16,
-    fontSize: 16,
-  },
-  settingsSection: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  sectionHeaderText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 15,
-    color: '#2F4F3E',
-    marginLeft: 8,
-  },
-  fieldLabel: {
-    fontFamily: 'Author-Variable',
-    fontSize: 13,
-    color: '#2F4F3E',
-    marginBottom: 6,
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 18,
-  },
+  painting: { opacity: 0.34 },
+  avatar: { width: 100, height: 100, borderRadius: 50, backgroundColor: colors.sage },
+  name: { ...HifiType.body, color: colors.heading, fontSize: 24, lineHeight: 29, marginTop: 15, textAlign: 'center' },
+  location: { ...HifiType.body, color: colors.heading, lineHeight: 22, marginTop: 13, textAlign: 'center' },
+  bio: { ...HifiType.body, fontSize: 14, lineHeight: 18, color: colors.darkHeading, textAlign: 'center', marginVertical: 18 },
+  stats: { minHeight: 55, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8 },
+  stat: { ...HifiType.body, flex: 1, textAlign: 'center', color: colors.heading },
+  divider: { width: 24, height: 23 },
+  settings: { paddingHorizontal: 19, paddingTop: 21 },
+  sectionHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  gear: { width: 20, height: 20 },
+  heading: { ...HifiType.body, fontSize: 19, lineHeight: 30, color: colors.heading },
+  fieldLabel: { ...HifiType.body, fontSize: 14, lineHeight: 30, color: colors.heading, marginTop: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 13, marginBottom: 12 },
   inputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 15,
-    paddingHorizontal: 14,
-    height: 44,
-    marginRight: 10,
+    flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', minHeight: 34, paddingHorizontal: 13, gap: 10,
+    backgroundColor: 'white', borderWidth: 1.75, borderColor: colors.inputBorder, borderRadius: 12,
   },
-  inputIcon: {
-    marginRight: 8,
+  inputIcon: { width: 18, height: 18 },
+  input: { ...HifiType.body, fontSize: 14, flex: 1, minWidth: 0, padding: 0, color: colors.heading },
+  eye: { width: 15, height: 15 },
+  action: {
+    minWidth: 102, minHeight: 33, paddingHorizontal: 12, borderRadius: 100,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.leaf,
   },
-  input: {
-    flex: 1,
-    fontSize: 13,
-    color: '#333',
-  },
-  updateButton: {
-    backgroundColor: '#4B6355',
-    borderRadius: 15,
-    paddingHorizontal: 16,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  updateButtonText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 13,
-    color: '#FFFFFF',
-  },
-  deleteButton: {
-    backgroundColor: '#A83232',
-    borderRadius: 22,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  deleteButtonText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 14,
-    color: '#FFFFFF',
-  },
+  actionLabel: { ...HifiType.button, fontSize: 14, color: 'white', textAlign: 'center' },
+  compact: { minHeight: 28 },
+  pressed: { opacity: 0.75 },
+  dangerSection: { marginTop: 12 },
+  danger: { minWidth: 125, backgroundColor: colors.danger },
+  accountActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  guestBanner: { paddingVertical: 28 },
+  guestCopy: { ...HifiType.body, color: colors.heading, textAlign: 'center', marginTop: 10, maxWidth: 320 },
+  guestActions: { alignSelf: 'center', width: '100%', maxWidth: 300, marginTop: 22 },
+  link: { minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  linkText: { ...HifiType.body, fontSize: 16, color: colors.heading, textDecorationLine: 'underline' },
 });
