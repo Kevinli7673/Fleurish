@@ -83,7 +83,7 @@ function LeaderboardRow({
       </View>
 
       <View style={styles.rowInfo}>
-        <Text style={styles.rowName} numberOfLines={2}>
+        <Text style={styles.rowName} numberOfLines={1} ellipsizeMode="tail">
           {entry.name}
         </Text>
         <Text style={styles.rowBlooms}>
@@ -105,7 +105,7 @@ function LeaderboardRow({
 
 export default function Friends() {
   const router = useRouter();
-  const headerTop = Math.max(40, useSafeAreaInsets().top);
+  const headerTop = Math.max(36, useSafeAreaInsets().top);
   const [expanded, setExpanded] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [listTop, setListTop] = useState<number | null>(null);
@@ -226,7 +226,7 @@ export default function Friends() {
       >
         <View>
           <View style={[styles.header, { paddingTop: headerTop }]}>
-            <Image source={require('@/assets/images/LeaderboardBG.png')} resizeMode="stretch" style={[styles.headerArt, { height: (headerTop + 219) * 916 / 259 }]} />
+            <Image source={require('@/assets/images/LeaderboardBG.png')} resizeMode="stretch" style={[styles.headerArt, { height: (headerTop + 172) * 916 / 259 }]} />
             <View style={styles.backButton}>
               <RoundBackButton onPress={() => router.back()} />
             </View>
@@ -284,42 +284,42 @@ export default function Friends() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: 'white' },
-  header: { paddingHorizontal: 16, paddingBottom: 47, overflow: 'hidden' },
+  header: { paddingHorizontal: 16, paddingBottom: 32, overflow: 'hidden' },
   // This artwork includes the rounded top edge of the white leaderboard sheet.
   headerArt: { position: 'absolute', top: 0, width: '100%', left: 0 },
   backButton: { marginLeft: 4 },
   titleBadge: {
-    alignSelf: 'flex-start', minWidth: 229, alignItems: 'center', marginTop: 48, minHeight: 55, justifyContent: 'center',
+    alignSelf: 'flex-start', minWidth: 202, alignItems: 'center', marginTop: 30, minHeight: 46, justifyContent: 'center',
     paddingHorizontal: 18, borderRadius: 20, backgroundColor: HifiColors.titleBadge,
     boxShadow: '0 4px 4px rgba(0,0,0,0.25)',
   },
-  titleText: { ...HifiType.title, color: 'white' },
+  titleText: { ...HifiType.title, fontSize: 28, color: 'white' },
   filterPill: {
-    marginLeft: 7, marginTop: 10, width: 197, minHeight: 45, borderRadius: 20,
+    marginLeft: 7, marginTop: 8, width: 174, minHeight: 38, borderRadius: 20,
     justifyContent: 'center', alignItems: 'center', backgroundColor: HifiColors.inputBorder,
     boxShadow: '0 4px 4px rgba(0,0,0,0.25)',
   },
-  filterText: { ...HifiType.button, color: HifiColors.heading },
-  listContent: { paddingHorizontal: 12, paddingBottom: 100, gap: 10 },
+  filterText: { ...HifiType.button, fontSize: 18, color: HifiColors.heading },
+  listContent: { paddingHorizontal: 12, paddingBottom: 100, gap: 8 },
   signInPrompt: { paddingHorizontal: 24, paddingVertical: 40, alignItems: 'center', gap: 12 },
   signInPromptTitle: { ...HifiType.title, fontSize: 22, color: HifiColors.heading },
   signInPromptSubtitle: { ...HifiType.body, color: HifiColors.leaf, textAlign: 'center' },
   row: {
-    minHeight: 90, flexDirection: 'row', alignItems: 'center', overflow: 'hidden',
+    minHeight: 78, flexDirection: 'row', alignItems: 'center', overflow: 'hidden',
     backgroundColor: HifiColors.cream, borderRadius: 20, paddingRight: 12,
     boxShadow: '0 2px 4px rgba(27,57,28,0.2)',
   },
   rankBlock: {
-    width: '42%', maxWidth: 160, alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center',
+    width: '38%', maxWidth: 144, alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center',
   },
   rankShape: { position: 'absolute', width: '100%', height: '100%' },
-  rankNumber: { ...HifiType.button, fontSize: 40, width: '27%', color: HifiColors.heading, textAlign: 'center' },
-  avatar: { width: '43%', maxWidth: 64, aspectRatio: 1, borderRadius: 32, overflow: 'hidden' },
+  rankNumber: { ...HifiType.button, fontSize: 34, width: '27%', color: HifiColors.heading, textAlign: 'center' },
+  avatar: { width: 56, maxWidth: '48%', aspectRatio: 1, borderRadius: 32, overflow: 'hidden' },
   avatarImage: { position: 'absolute', width: '100%', height: '100%' },
-  rowInfo: { flex: 1, alignItems: 'flex-start', paddingHorizontal: 8, paddingVertical: 8 },
-  rowName: { ...HifiType.button, fontSize: 24, color: HifiColors.heading },
+  rowInfo: { flex: 1, minWidth: 0, alignItems: 'flex-start', paddingHorizontal: 8, paddingVertical: 8 },
+  rowName: { ...HifiType.button, alignSelf: 'stretch', fontSize: 18, lineHeight: 22, color: HifiColors.heading },
   rowBlooms: { ...HifiType.tag, fontSize: 11, lineHeight: 16, color: HifiColors.tag.text, textAlign: 'center', marginTop: 4 },
-  badge: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, marginHorizontal: '3%', maxWidth: '26%' },
+  badge: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3, marginHorizontal: '2%', maxWidth: '26%' },
   badgeText: { ...HifiType.tag, lineHeight: 15, color: HifiColors.tag.text },
   pinnedRow: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   pinnedCard: { borderRadius: 0, backgroundColor: HifiColors.rank.gold },
