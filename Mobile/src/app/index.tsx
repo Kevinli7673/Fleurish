@@ -1,21 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ImageBackground, Animated, Pressable } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFonts } from 'expo-font';
 import { useRouter } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { PillButton } from '@/components/pill-button';
+import { HifiColors, HifiType } from '@/constants/hifi-theme';
 
 export default function Index() {
   const router = useRouter();
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [ready, setReady] = useState(false);
 
-  const [fontsLoaded] = useFonts({
-    Mootjungle: require('@/assets/fonts/Mootjungle.ttf'),
-    'Author-Variable': require('@/assets/fonts/Author-Variable.ttf'),
-  });
-
-  const [screen, setScreen] = useState<'landing' | 'auth'>('landing');
-
- 
   const landingContentFade = useRef(new Animated.Value(0)).current;
   const landingScale = useRef(new Animated.Value(0.92)).current;
 
@@ -25,9 +23,7 @@ export default function Index() {
   const authContentFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!fontsLoaded) return;
-
-    Animated.parallel([
+    const intro = Animated.parallel([
       Animated.timing(landingContentFade, {
         toValue: 1,
         duration: 1100,
@@ -39,190 +35,94 @@ export default function Index() {
         tension: 40,
         useNativeDriver: true,
       }),
-    ]).start();
+    ]);
+    intro.start();
 
+    const transition = Animated.parallel([
+      Animated.timing(landingContentFade, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(landingBgFade, {
+        toValue: 0,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+      Animated.timing(authBgFade, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+      Animated.timing(authContentFade, {
+        toValue: 1,
+        duration: 600,
+        delay: 300,
+        useNativeDriver: true,
+      }),
+    ]);
     const timer = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(landingContentFade, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(landingBgFade, {
-          toValue: 0,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-        Animated.timing(authBgFade, {
-          toValue: 1,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-        Animated.timing(authContentFade, {
-          toValue: 1,
-          duration: 600,
-          delay: 300,
-          useNativeDriver: true,
-        }),
-      ]).start(() => setScreen('auth'));
+      transition.start(({ finished }) => {
+        if (finished) setReady(true);
+      });
     }, 3000);
 
-    return () => clearTimeout(timer);
-  }, [fontsLoaded]);
-
-  if (!fontsLoaded) {
-    return <View style={styles.loadingContainer} />;
-  }
+    return () => {
+      clearTimeout(timer);
+      intro.stop();
+      transition.stop();
+    };
+  }, [landingContentFade, landingScale, landingBgFade, authBgFade, authContentFade]);
 
   return (
-    <View style={styles.background}>
-      {/* Landing background */}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: landingBgFade }]}>
-        <ImageBackground
-          source={require('@/assets/images/Background.png')}
-          style={styles.background}
-          resizeMode="cover"
-        />
+    <LinearGradient colors={[HifiColors.blush, HifiColors.cream, HifiColors.mint]} style={styles.screen}>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: landingBgFade }]}>
+        <Image source={require('../assets/images/welcome-coast.webp')} contentFit="fill" style={StyleSheet.absoluteFill} />
+      </Animated.View>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: authBgFade }]}>
+        <Image source={require('../assets/images/welcome-meadow.webp')} contentFit="fill" style={StyleSheet.absoluteFill} />
       </Animated.View>
 
-      {/* Choice background */}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: authBgFade }]}>
-        <ImageBackground
-          source={require('@/assets/images/Choice.png')}
-          style={styles.background}
-          resizeMode="cover"
-        />
-      </Animated.View>
-
-      {/* Shared gradient, always on top of both backgrounds, never changes */}
-      <LinearGradient
-        colors={['#FCEDEB', '#F7F1E6', '#F6FDF3']}
-        locations={[0, 0.5, 1]}
-        style={[StyleSheet.absoluteFill, { opacity: 0.3 }]}
-        pointerEvents="none"
-      />
-
-      {/* Landing content */}
       <Animated.View
-        pointerEvents={screen === 'landing' ? 'auto' : 'none'}
-        style={[
-          styles.centerWrap,
-          StyleSheet.absoluteFill,
-          {
-            opacity: landingContentFade,
-            transform: [{ scale: landingScale }],
-          },
-        ]}
+        aria-hidden={ready}
+        pointerEvents="none"
+        style={[styles.splashCopy, { opacity: landingContentFade, transform: [{ scale: landingScale }] }]}
       >
-        <Text style={styles.title}>Fleurish</Text>
+        <Text style={styles.splashTitle}>Fleurish.</Text>
         <Text style={styles.tagline}>Rooted in discovery!</Text>
       </Animated.View>
 
-      {/* New/Existing user choice */}
       <Animated.View
-        pointerEvents={screen === 'auth' ? 'auto' : 'none'}
-        style={[
-          styles.centerWrap,
-          StyleSheet.absoluteFill,
-          { opacity: authContentFade },
-        ]}
+        aria-hidden={!ready}
+        pointerEvents={ready ? 'auto' : 'none'}
+        style={[StyleSheet.absoluteFill, { opacity: authContentFade }]}
       >
-        <View style={styles.choiceRow}>
-          <View style={styles.choiceItem}>
-            <Pressable
-              style={[styles.circleButton, { backgroundColor: '#E8637A' }]}
-              onPress={() => router.push('/signup')}
-            >
-              <MaterialCommunityIcons name="sprout" size={36} color="#FFF" />
-            </Pressable>
-            <Text style={styles.choiceLabel}>New User?</Text>
-          </View>
-
-          <Text style={styles.orText}>OR</Text>
-
-          <View style={styles.choiceItem}>
-            <Pressable
-              style={[styles.circleButton, { backgroundColor: '#2F4F3E' }]}
-              onPress={() => router.push('/login')}
-            >
-              <MaterialCommunityIcons name="pine-tree" size={36} color="#FFF" />
-            </Pressable>
-            <Text style={styles.choiceLabel}>Existing User?</Text>
-          </View>
+        <View style={[styles.heading, { top: Math.max(height * 0.033, insets.top) }]}>
+          <Text style={styles.wordmark}>Fleurish.</Text>
+          <Text style={styles.subtitle}>The journey begins...</Text>
+        </View>
+        <View style={[styles.choices, { gap: Math.min(46, height * 0.053) }]}>
+          <PillButton label="I am a New Bloomer!" variant="newBloomer" disabled={!ready} onPress={() => router.push('/signup')} />
+          <PillButton label="I am an Existing Bloomer!" variant="existingBloomer" disabled={!ready} onPress={() => router.push('/login')} />
         </View>
       </Animated.View>
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: '#F7F1E6',
-  },
-  background: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  centerWrap: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  title: {
-    fontFamily: 'Mootjungle',
-    fontSize: 52,
-    color: '#2F4F3E',
-    letterSpacing: 0.5,
-    textAlign: 'center',
-    textShadowColor: 'rgba(255,255,255,0.55)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 10,
-  },
-  tagline: {
-    fontFamily: 'Mootjungle',
-    fontSize: 28,
-    color: '#4B6355',
-    letterSpacing: 1.2,
-    marginTop: -20,
-    textAlign: 'center',
-  },
-  choiceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  choiceItem: {
-    alignItems: 'center',
-    marginHorizontal: 16,
-  },
-  circleButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  choiceLabel: {
-    fontFamily: 'Author-Variable',
-    fontWeight: '700',
-    fontSize: 15,
-    color: '#2F4F3E',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  orText: {
-    fontFamily: 'Author-Variable',
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#2F4F3E',
-    marginHorizontal: 8,
+  screen: { flex: 1, overflow: 'hidden' },
+  splashCopy: { position: 'absolute', bottom: '63.6%', width: '100%', alignItems: 'center' },
+  splashTitle: { ...HifiType.display, fontSize: 64, color: HifiColors.darkHeading },
+  tagline: { ...HifiType.body, fontSize: 32, letterSpacing: -1, color: HifiColors.darkHeading },
+  heading: { position: 'absolute', left: '7.5%' },
+  wordmark: { ...HifiType.display, color: HifiColors.ink },
+  subtitle: { ...HifiType.body, fontSize: 28, letterSpacing: -0.5, color: HifiColors.ink },
+  choices: {
+    position: 'absolute',
+    top: '42%',
+    alignSelf: 'center',
+    width: '82.6%',
+    maxWidth: 420,
   },
 });

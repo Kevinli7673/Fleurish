@@ -16,6 +16,8 @@ export const HifiFonts = {
 };
 
 export const HifiColors = {
+  ink: '#000000',
+  poppy: '#EF5356',
   cream: '#F7F1E6',
   blush: '#FCEDEB',
   mint: '#F6FDF3',
