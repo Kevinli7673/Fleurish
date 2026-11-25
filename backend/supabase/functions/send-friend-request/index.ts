@@ -47,6 +47,17 @@ Deno.serve(async (req) => {
       );
     }
 
+    // friend_id is interpolated into a PostgREST filter below, so accept only a UUID.
+    if (
+      typeof friend_id !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(friend_id)
+    ) {
+      return new Response(
+        JSON.stringify({ error: "Invalid friend_id parameter" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (friend_id === user.id) {
       return new Response(
         JSON.stringify({ error: "You cannot add yourself as a friend" }),
@@ -63,9 +74,8 @@ Deno.serve(async (req) => {
         .or(`and(user_id.eq.${user.id},friend_id.eq.${friend_id}),and(user_id.eq.${friend_id},friend_id.eq.${user.id})`)
         .maybeSingle();
 
-      if (error) {
-        console.error("Database query error:", error.message);
-      }
+      // A failed read must not look like "no friendship": surface it as a 500 via the outer catch.
+      if (error) throw new Error(`Could not look up friendship: ${error.message}`);
       return data;
     };
 
