@@ -56,48 +56,76 @@ Deno.serve(async (req) => {
 
     console.log(`Sending friend request from ${user.id} to ${friend_id}`);
 
-    // Check if a friendship record already exists (in either direction)
-    const { data: existingFriendship, error: checkErr } = await supabaseClient
-      .from("friendships")
-      .select("*")
-      .or(`and(user_id.eq.${user.id},friend_id.eq.${friend_id}),and(user_id.eq.${friend_id},friend_id.eq.${user.id})`)
-      .maybeSingle();
+    const findFriendship = async () => {
+      const { data, error } = await supabaseClient
+        .from("friendships")
+        .select("*")
+        .or(`and(user_id.eq.${user.id},friend_id.eq.${friend_id}),and(user_id.eq.${friend_id},friend_id.eq.${user.id})`)
+        .maybeSingle();
 
-    if (checkErr) {
-      console.error("Database query error:", checkErr.message);
+      if (error) {
+        console.error("Database query error:", error.message);
+      }
+      return data;
+    };
+
+    let existingFriendship = await findFriendship();
+    if (!existingFriendship) {
+      const { data: friendship, error: insertErr } = await supabaseClient
+        .from("friendships")
+        .insert({ user_id: user.id, friend_id, status: "pending" })
+        .select()
+        .single();
+
+      if (!insertErr) {
+        return new Response(
+          JSON.stringify({ status: "pending", friendship }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Another send may have inserted the pair while this request was in flight.
+      if (insertErr.code === "23505") {
+        existingFriendship = await findFriendship();
+      }
+
+      if (!existingFriendship) {
+        console.error("Database error sending request:", insertErr.message);
+        return new Response(
+          JSON.stringify({ error: "Failed to send friend request", details: insertErr.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
-    if (existingFriendship) {
+    if (existingFriendship.status === "pending" && existingFriendship.friend_id === user.id) {
+      const { error: updateErr } = await supabaseClient
+        .from("friendships")
+        .update({ status: "accepted" })
+        .eq("user_id", friend_id)
+        .eq("friend_id", user.id)
+        .select("status")
+        .single();
+
+      if (updateErr) {
+        console.error("Database update error:", updateErr.message);
+        return new Response(
+          JSON.stringify({ error: "Failed to accept friend request", details: updateErr.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({
-          message: "Friendship record already exists",
-          friendship: existingFriendship,
-        }),
+        JSON.stringify({ status: "accepted" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Insert new pending friendship
-    const { data: friendship, error: insertErr } = await supabaseClient
-      .from("friendships")
-      .insert({
-        user_id: user.id,
-        friend_id: friend_id,
-        status: "pending",
-      })
-      .select()
-      .single();
-
-    if (insertErr) {
-      console.error("Database error sending request:", insertErr.message);
-      return new Response(
-        JSON.stringify({ error: "Failed to send friend request", details: insertErr.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     return new Response(
-      JSON.stringify({ status: "pending", friendship }),
+      JSON.stringify({
+        message: "Friendship record already exists",
+        friendship: existingFriendship,
+      }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
