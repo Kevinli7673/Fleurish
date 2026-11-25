@@ -314,6 +314,15 @@ export default function Friends() {
                 </Text>
               )}
             </View>
+          ) : rankings.length === 0 ? (
+            <View style={styles.signInPrompt}>
+              <Text style={styles.signInPromptTitle} accessibilityLiveRegion="polite">
+                No finds yet
+              </Text>
+              <Text style={styles.signInPromptSubtitle}>
+                Log a plant to get on the leaderboard.
+              </Text>
+            </View>
           ) : (
             <View style={styles.listContent} onLayout={e => setListTop(e.nativeEvent.layout.y)}>
               {displayedData.map((entry) => (

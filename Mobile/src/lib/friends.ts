@@ -126,8 +126,6 @@ export async function sendFriendRequest(friendId: string): Promise<void> {
  * @param requesterId the id of the user who SENT the request
  */
 export async function respondFriendRequest(requesterId: string, accept: boolean): Promise<void> {
-  if (!accept) return removeFriend(requesterId);
-
   const { error } = await supabase.functions.invoke('respond-friend-request', {
     body: { friend_id: requesterId, accept },
   });
