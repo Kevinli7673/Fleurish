@@ -41,6 +41,53 @@ type FriendshipRow = {
   recipient: UserSummary | null;
 };
 
+function friendshipPairFilter(myId: string, otherUserId: string): string {
+  // Only interpolate UUIDs into the PostgREST filter expression.
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(otherUserId)) {
+    throw new Error('Invalid user ID.');
+  }
+  return `and(user_id.eq.${myId},friend_id.eq.${otherUserId}),and(user_id.eq.${otherUserId},friend_id.eq.${myId})`;
+}
+
+/** Unfriend someone or remove a pending request in either direction. */
+export async function removeFriend(otherUserId: string): Promise<void> {
+  const myId = await getMyUserId();
+  const { error } = await supabase
+    .from('friendships')
+    .delete()
+    .or(friendshipPairFilter(myId, otherUserId));
+  if (error) throw new Error('Could not remove friendship.');
+}
+
+export async function getFriendStatus(
+  otherUserId: string
+): Promise<'none' | 'outgoing' | 'incoming' | 'friends'> {
+  const myId = await getMyUserId();
+  const { data, error } = await supabase
+    .from('friendships')
+    .select('user_id, status')
+    .or(friendshipPairFilter(myId, otherUserId));
+  if (error) throw new Error('Could not load friendship status.');
+
+  if (data?.some((row) => row.status === 'accepted')) return 'friends';
+  if (data?.some((row) => row.user_id !== myId)) return 'incoming';
+  return data?.length ? 'outgoing' : 'none';
+}
+
+/** Return the other party's ID from each accepted friendship. */
+export async function getFriendIds(): Promise<string[]> {
+  const myId = await getMyUserId();
+  const { data, error } = await supabase
+    .from('friendships')
+    .select('user_id, friend_id')
+    .eq('status', 'accepted')
+    .or(`user_id.eq.${myId},friend_id.eq.${myId}`);
+  if (error) throw new Error('Could not load friends.');
+
+  const ids = (data ?? []).map((row) => row.user_id === myId ? row.friend_id : row.user_id);
+  return [...new Set(ids)];
+}
+
 /** All friendship state for the current user, split into friends / incoming / outgoing. */
 export async function getFriendships(): Promise<Friendships> {
   const myId = await getMyUserId();
@@ -79,6 +126,8 @@ export async function sendFriendRequest(friendId: string): Promise<void> {
  * @param requesterId the id of the user who SENT the request
  */
 export async function respondFriendRequest(requesterId: string, accept: boolean): Promise<void> {
+  if (!accept) return removeFriend(requesterId);
+
   const { error } = await supabase.functions.invoke('respond-friend-request', {
     body: { friend_id: requesterId, accept },
   });
