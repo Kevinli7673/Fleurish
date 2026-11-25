@@ -194,7 +194,8 @@ function FriendsHighlight() {
 
   useFocusEffect(useCallback(() => {
     let active = true;
-    setHighlight('loading');
+    // Initial state is already 'loading'. Don't reset it on refocus, or the card
+    // unmounts into a spinner every time the user comes back to this tab.
 
     async function loadHighlight() {
       try {
