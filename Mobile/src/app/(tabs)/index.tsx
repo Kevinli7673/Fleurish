@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
+  ActivityIndicator,
   View,
   Text,
   StyleSheet,
@@ -13,6 +14,8 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { toggleLike, toggleBookmark, getFindUserStatus } from '@/lib/finds';
+import { getLatestFriendFind } from '@/lib/friendFeed';
+import { useSession } from '@/hooks/use-session';
 
 import { Image as AssetImage } from 'expo-image';
 import { HifiColors, HifiType } from '@/constants/hifi-theme';
@@ -77,10 +80,8 @@ const FRIEND_UPDATE: FriendUpdate = {
 
 export default function Feed() {
   const router = useRouter();
+  const { session, isLoading } = useSession();
   const [nearbyFinds, setNearbyFinds] = useState<NearbyBloom[]>([]);
-  const [friendUpdate, setFriendUpdate] = useState<FriendUpdate | null>(null);
-  const [bookmarked, setBookmarked] = useState(false);
-  const [liked, setLiked] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -106,30 +107,6 @@ export default function Feed() {
               avatarUrl: f.profiles?.avatar_url || null,
             }));
             setNearbyFinds(mappedNearby);
-
-            // Populate the highlighted post
-            if (rawData.length > 0) {
-              const highlight = rawData[0];
-              setFriendUpdate({
-                id: highlight.id,
-                date: highlight.created_at
-                  ? new Date(highlight.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                  : 'Unknown',
-                name: highlight.plants?.common_name ?? 'Unknown Plant',
-                location: highlight.city || 'Nearby',
-                note: highlight.caption || 'Logged a new plant sighting!',
-                loggedBy: highlight.profiles?.username || 'Sprout Finder',
-                match: highlight.confidence ? `${Math.round(Number(highlight.confidence) * 100)}% match` : undefined,
-                image: highlight.photo_url ? { uri: highlight.photo_url } : require('@/assets/images/monstera.jpg'),
-              });
-
-              // Check if user has liked or bookmarked this sighting
-              const status = await getFindUserStatus(highlight.id);
-              if (active) {
-                setBookmarked(status.bookmarked);
-                setLiked(status.liked);
-              }
-            }
           }
         } catch (e) {
           console.error('Failed to load feed:', e);
@@ -143,27 +120,6 @@ export default function Feed() {
   );
 
   const displayedNearby = nearbyFinds.length > 0 ? nearbyFinds : NEARBY_BLOOMS;
-  const displayedFriendUpdate = friendUpdate || FRIEND_UPDATE;
-
-  const handleToggleLike = async () => {
-    if (!displayedFriendUpdate?.id) return;
-    try {
-      const isLiked = await toggleLike(displayedFriendUpdate.id);
-      setLiked(isLiked);
-    } catch (e) {
-      console.error('Failed to toggle like:', e);
-    }
-  };
-
-  const handleToggleBookmark = async () => {
-    if (!displayedFriendUpdate?.id) return;
-    try {
-      const isBookmarked = await toggleBookmark(displayedFriendUpdate.id);
-      setBookmarked(isBookmarked);
-    } catch (e) {
-      console.error('Failed to toggle bookmark:', e);
-    }
-  };
 
   const openCamera = () => router.push('/camera');
 
@@ -217,42 +173,139 @@ export default function Feed() {
           <AssetImage source={require('../../assets/images/feed/friends.svg')} style={styles.sectionIcon} />
           <Text accessibilityRole="header" style={styles.sectionTitle}>From your friends</Text>
         </View>
-        <View style={styles.post}>
-          <View style={styles.specimen}>
-            <View style={styles.photoMount}>
-              <Image source={displayedFriendUpdate.image} style={styles.specimenPhoto} />
-              <Image source={require('../../assets/images/feed/photo-paper.webp')} resizeMode="stretch" style={styles.cover} />
+        {isLoading ? null : session ? (
+          <FriendsHighlight key={session.user.id} />
+        ) : (
+          <FriendFindCard update={FRIEND_UPDATE} />
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+type FindUserStatus = Awaited<ReturnType<typeof getFindUserStatus>>;
+type FriendHighlight = 'loading' | 'error' | null | {
+  update: FriendUpdate;
+  status: FindUserStatus;
+};
+
+function FriendsHighlight() {
+  const [highlight, setHighlight] = useState<FriendHighlight>('loading');
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    // Initial state is already 'loading'. Don't reset it on refocus, or the card
+    // unmounts into a spinner every time the user comes back to this tab.
+
+    async function loadHighlight() {
+      try {
+        const find = await getLatestFriendFind();
+        if (!active) return;
+        if (!find) {
+          setHighlight(null);
+          return;
+        }
+
+        const status = await getFindUserStatus(find.id);
+        if (!active) return;
+
+        setHighlight({
+          status,
+          update: {
+            id: find.id,
+            date: find.created_at
+              ? new Date(find.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+              : 'Unknown',
+            name: find.plants?.common_name ?? 'Unknown Plant',
+            location: find.city || 'Nearby',
+            note: find.caption || 'Logged a new plant sighting!',
+            loggedBy: find.profiles?.username || 'Sprout Finder',
+            match: find.confidence == null ? undefined : `${Math.round(find.confidence * 100)}% match`,
+            image: find.photo_url ? { uri: find.photo_url } : require('@/assets/images/monstera.jpg'),
+          },
+        });
+      } catch (error) {
+        console.error('Failed to load the friend feed:', error);
+        if (active) setHighlight('error');
+      }
+    }
+
+    loadHighlight();
+    return () => { active = false; };
+  }, []));
+
+  if (highlight === 'loading') {
+    return <ActivityIndicator accessibilityLabel="Loading friends’ finds" color={HifiColors.heading} />;
+  }
+
+  if (!highlight || highlight === 'error') {
+    return (
+      <Text style={styles.friendMessage}>
+        {highlight === 'error' ? 'Could not load your friends’ finds.' : 'Add friends to see their finds here'}
+      </Text>
+    );
+  }
+
+  return <FriendFindCard key={highlight.update.id} update={highlight.update} initialStatus={highlight.status} />;
+}
+
+function FriendFindCard({ update, initialStatus }: { update: FriendUpdate; initialStatus?: FindUserStatus }) {
+  const [bookmarked, setBookmarked] = useState(initialStatus?.bookmarked ?? false);
+  const [liked, setLiked] = useState(initialStatus?.liked ?? false);
+
+  const handleToggleLike = async () => {
+    if (!update.id) return;
+    try {
+      setLiked(await toggleLike(update.id));
+    } catch (error) {
+      console.error('Failed to toggle like:', error);
+    }
+  };
+
+  const handleToggleBookmark = async () => {
+    if (!update.id) return;
+    try {
+      setBookmarked(await toggleBookmark(update.id));
+    } catch (error) {
+      console.error('Failed to toggle bookmark:', error);
+    }
+  };
+
+  return (
+    <View style={styles.post}>
+      <View style={styles.specimen}>
+        <View style={styles.photoMount}>
+          <Image source={update.image} style={styles.specimenPhoto} />
+          <Image source={require('../../assets/images/feed/photo-paper.webp')} resizeMode="stretch" style={styles.cover} />
+        </View>
+        <View style={styles.labelBorder}>
+          <View style={styles.label}>
+            <Text style={styles.eyebrow}>SPECIMEN NO. {update.id?.slice(0, 6).toUpperCase() ?? '0142'}</Text>
+            <Text style={styles.plantName}>{update.name}</Text>
+            <View style={styles.details}>
+              <View style={styles.column}><Text style={styles.eyebrow}>FOUND IN</Text><Text style={styles.value}>{update.location}</Text></View>
+              <View style={styles.column}><Text style={styles.eyebrow}>LOGGED BY</Text><Text style={styles.value}>{update.loggedBy}</Text></View>
             </View>
-            <View style={styles.labelBorder}>
-              <View style={styles.label}>
-                <Text style={styles.eyebrow}>SPECIMEN NO. {displayedFriendUpdate.id?.slice(0, 6).toUpperCase() ?? '0142'}</Text>
-                <Text style={styles.plantName}>{displayedFriendUpdate.name}</Text>
-                <View style={styles.details}>
-                  <View style={styles.column}><Text style={styles.eyebrow}>FOUND IN</Text><Text style={styles.value}>{displayedFriendUpdate.location}</Text></View>
-                  <View style={styles.column}><Text style={styles.eyebrow}>LOGGED BY</Text><Text style={styles.value}>{displayedFriendUpdate.loggedBy}</Text></View>
-                </View>
-                <View style={styles.details}>
-                  {displayedFriendUpdate.match ? (
-                    <View style={styles.column}><Text style={styles.eyebrow}>MATCH</Text><Text style={styles.value}>{displayedFriendUpdate.match}</Text></View>
-                  ) : null}
-                  <View style={styles.column}><Text style={styles.eyebrow}>DATE</Text><Text style={styles.value}>{displayedFriendUpdate.date}</Text></View>
-                </View>
-              </View>
-            </View>
-          </View>
-          <View style={styles.footer}>
-            <Text style={styles.note}>{displayedFriendUpdate.note}</Text>
-            <View style={styles.actions}>
-              <Pressable accessibilityRole="button" accessibilityLabel="Like" accessibilityState={{ selected: liked }} onPress={handleToggleLike} style={styles.action}>
-                <MaterialCommunityIcons name={liked ? 'heart' : 'heart-outline'} size={21} color={liked ? HifiColors.primary : HifiColors.heading} />
-              </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Bookmark" accessibilityState={{ selected: bookmarked }} onPress={handleToggleBookmark} style={styles.action}>
-                <MaterialCommunityIcons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={21} color={bookmarked ? HifiColors.primary : HifiColors.heading} />
-              </Pressable>
+            <View style={styles.details}>
+              {update.match ? (
+                <View style={styles.column}><Text style={styles.eyebrow}>MATCH</Text><Text style={styles.value}>{update.match}</Text></View>
+              ) : null}
+              <View style={styles.column}><Text style={styles.eyebrow}>DATE</Text><Text style={styles.value}>{update.date}</Text></View>
             </View>
           </View>
         </View>
-      </ScrollView>
+      </View>
+      <View style={styles.footer}>
+        <Text style={styles.note}>{update.note}</Text>
+        <View style={styles.actions}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Like" accessibilityState={{ selected: liked }} onPress={handleToggleLike} style={styles.action}>
+            <MaterialCommunityIcons name={liked ? 'heart' : 'heart-outline'} size={21} color={liked ? HifiColors.primary : HifiColors.heading} />
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Bookmark" accessibilityState={{ selected: bookmarked }} onPress={handleToggleBookmark} style={styles.action}>
+            <MaterialCommunityIcons name={bookmarked ? 'bookmark' : 'bookmark-outline'} size={21} color={bookmarked ? HifiColors.primary : HifiColors.heading} />
+          </Pressable>
+        </View>
+      </View>
     </View>
   );
 }
@@ -286,6 +339,7 @@ const styles = StyleSheet.create({
   leaderCrop: { position: 'absolute', top: 0, left: 0, width: 26, height: 200, overflow: 'hidden' },
   leader: { position: 'absolute', width: 380, height: 675, top: -234, left: 21, transform: [{ rotate: '-90deg' }], opacity: 0.76 },
   post: { paddingHorizontal: 14, paddingTop: 8 },
+  friendMessage: { ...HifiType.body, color: HifiColors.heading, marginHorizontal: 22, marginTop: 8 },
   specimen: { flexDirection: 'row', alignItems: 'center' },
   photoMount: { width: '41%', aspectRatio: 566 / 687 },
   specimenPhoto: { position: 'absolute', left: '4%', top: '4%', width: '92%', height: '77%' },
