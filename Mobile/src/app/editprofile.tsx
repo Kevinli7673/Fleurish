@@ -22,6 +22,7 @@ import { useProfile } from '@/context/profilecontext';
 import { Alert } from '@/lib/alert';
 import { supabase } from '@/lib/supabase';
 import { updateProfile, uploadAvatar } from '@/lib/profile';
+import { UsernameTakenError, validateUsername } from '@/lib/username';
 
 export default function EditProfile() {
   const router = useRouter();
@@ -31,6 +32,7 @@ export default function EditProfile() {
   const [location, setLocation] = useState(profile.location);
   const [bio, setBio] = useState(profile.bio);
   const [username, setUsername] = useState('');
+  const [usernameError, setUsernameError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -123,11 +125,9 @@ export default function EditProfile() {
   };
 
   const handleSave = async () => {
-    const trimmedUsername = username.trim();
-    if (!trimmedUsername) {
-      Alert.alert('Username required', 'Please enter a username.');
-      return;
-    }
+    const validationError = validateUsername(username);
+    setUsernameError(validationError);
+    if (validationError) return;
 
     setSaving(true);
     try {
@@ -140,7 +140,7 @@ export default function EditProfile() {
       }
 
       console.log('Updating database profile details...');
-      await updateProfile({ username: trimmedUsername, bio, needs_username: false });
+      await updateProfile({ username, bio, needs_username: false });
 
       profile.updateProfile({ photoUri: finalPhotoUrl, location, bio, needsUsername: false });
       // Forced first-login redirects use router.replace(), which leaves nothing to go
@@ -150,8 +150,13 @@ export default function EditProfile() {
       } else {
         router.replace('/(tabs)');
       }
-    } catch (err: any) {
-      Alert.alert('Save failed', err.message || 'An error occurred while saving your profile.');
+    } catch (err) {
+      if (err instanceof UsernameTakenError) {
+        setUsernameError(err.message);
+      } else {
+        const message = err instanceof Error ? err.message : 'An error occurred while saving your profile.';
+        Alert.alert('Save failed', message);
+      }
     } finally {
       setSaving(false);
     }
@@ -218,7 +223,7 @@ export default function EditProfile() {
 
           {/* Username */}
           <Text style={styles.label}>Username</Text>
-          <View style={styles.inputWrapper}>
+          <View style={[styles.inputWrapper, usernameError && styles.usernameInputWithError]}>
             <MaterialCommunityIcons
               name="at"
               size={20}
@@ -230,11 +235,17 @@ export default function EditProfile() {
               placeholder="Enter a username"
               placeholderTextColor="#A8A8A8"
               value={username}
-              onChangeText={setUsername}
+              onChangeText={value => {
+                setUsername(value);
+                setUsernameError(null);
+              }}
               autoCapitalize="none"
               autoCorrect={false}
             />
           </View>
+          {usernameError && (
+            <Text accessibilityRole="alert" style={styles.usernameError}>{usernameError}</Text>
+          )}
 
           {/* Location */}
           <Text style={styles.label}>Location</Text>
@@ -402,6 +413,16 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     paddingHorizontal: 16,
     height: 48,
+    marginHorizontal: 24,
+    marginBottom: 20,
+  },
+  usernameInputWithError: {
+    marginBottom: 6,
+  },
+  usernameError: {
+    color: '#A23735',
+    fontFamily: 'Author-Variable',
+    fontSize: 14,
     marginHorizontal: 24,
     marginBottom: 20,
   },
