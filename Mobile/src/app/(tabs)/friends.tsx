@@ -9,6 +9,7 @@ import {
   NativeSyntheticEvent,
   type LayoutChangeEvent,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PillButton } from '@/components/pill-button';
 import { RoundBackButton } from '@/components/round-back-button';
 import { HifiColors, HifiType } from '@/constants/hifi-theme';
+import { getFriendIds } from '@/lib/friends';
 import { supabase } from '@/lib/supabase';
 
 type LeaderboardEntry = {
@@ -48,6 +50,10 @@ const PAINTED_AVATARS = [
   require('../../assets/images/leaderboard-avatar-meadow.png'),
   require('../../assets/images/leaderboard-avatar-garden.png'),
 ];
+
+const AUDIENCES = ['Friends', 'Everyone'] as const;
+type Audience = (typeof AUDIENCES)[number];
+type LoadStatus = 'loading' | 'ready' | 'no-friends' | 'error';
 
 function getBadgeColor(label: string) {
   return BADGE_TYPES.find((b) => b.label === label)?.color ?? HifiColors.rank.pink;
@@ -114,27 +120,49 @@ export default function Friends() {
   const scrollY = useRef(0);
   const [rankings, setRankings] = useState<LeaderboardEntry[]>([]);
   const [currentUserRank, setCurrentUserRank] = useState<LeaderboardEntry | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadStatus, setLoadStatus] = useState<LoadStatus>('loading');
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [audience, setAudience] = useState<Audience>('Friends');
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
+      setLoadStatus('loading');
+      setExpanded(false);
+      setUserRow(null);
+      setListTop(null);
+
       async function loadLeaderboard() {
         try {
           const { data: { user } } = await supabase.auth.getUser();
           const userId = user?.id;
           if (!active) return;
           setSignedIn(!!userId);
-          if (!userId) return;
+          if (!userId) {
+            setAudience('Friends');
+            setLoadStatus('ready');
+            return;
+          }
+
+          let friendGroup: string[] | null = null;
+          if (audience === 'Friends') {
+            const friendIds = await getFriendIds();
+            if (!active) return;
+            if (friendIds.length === 0) {
+              setLoadStatus('no-friends');
+              return;
+            }
+            friendGroup = [userId, ...friendIds];
+          }
 
           const { data, error } = await supabase.functions.invoke('get-leaderboard', {
-            body: { scope: 'all_time', friend_group: null }
+            body: { scope: 'all_time', friend_group: friendGroup },
           });
 
           if (error) throw error;
 
-          if (active && data?.rankings) {
+          if (!active) return;
+          if (data?.rankings) {
             const mapped: LeaderboardEntry[] = data.rankings.map((r: any, idx: number) => ({
               rank: idx + 1,
               avatarUrl: r.avatar_url,
@@ -148,7 +176,7 @@ export default function Friends() {
             const userRank = mapped.find(r => r.isCurrentUser);
             if (userRank) {
               setCurrentUserRank(userRank);
-            } else if (userId) {
+            } else {
               const { data: profile } = await supabase
                 .from('profiles')
                 .select('username')
@@ -161,6 +189,7 @@ export default function Friends() {
                 .eq('user_id', userId)
                 .maybeSingle();
 
+              if (!active) return;
               setCurrentUserRank({
                 rank: mapped.length + 1,
                 name: profile?.username || 'You',
@@ -169,18 +198,21 @@ export default function Friends() {
                 isCurrentUser: true,
               });
             }
+          } else {
+            setRankings([]);
+            setCurrentUserRank(null);
           }
+          setLoadStatus('ready');
         } catch (e) {
           console.error('Failed to load leaderboard:', e);
-        } finally {
-          if (active) setLoading(false);
+          if (active) setLoadStatus('error');
         }
       }
       loadLeaderboard();
       return () => {
         active = false;
       };
-    }, [])
+    }, [audience])
   );
 
   const displayedData = expanded
@@ -207,7 +239,7 @@ export default function Friends() {
     updateVisibility();
   };
 
-  if (loading && rankings.length === 0) {
+  if (loadStatus === 'loading' && signedIn === null) {
     return (
       <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={HifiColors.heading} />
@@ -233,9 +265,30 @@ export default function Friends() {
             <View style={styles.titleBadge}>
               <Text style={styles.titleText}>Leaderboard</Text>
             </View>
-            <View style={styles.filterPill}>
-              <Text style={styles.filterText}>This Week</Text>
-            </View>
+            {signedIn && (
+              <View style={styles.audienceToggle}>
+                {AUDIENCES.map((option) => {
+                  const selected = audience === option;
+                  return (
+                    <TouchableOpacity
+                      key={option}
+                      style={[styles.filterPill, selected && styles.selectedFilterPill]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      onPress={() => {
+                        if (selected) return;
+                        setLoadStatus('loading');
+                        setAudience(option);
+                      }}
+                    >
+                      <Text style={[styles.filterText, selected && styles.selectedFilterText]}>
+                        {option}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
 
           {/* Rows */}
@@ -247,6 +300,28 @@ export default function Friends() {
                 Sign in to see the leaderboard and where you rank.
               </Text>
               <PillButton label="Sign In" onPress={() => router.push('/login')} />
+            </View>
+          ) : loadStatus === 'loading' ? (
+            <ActivityIndicator size="large" color={HifiColors.heading} />
+          ) : loadStatus === 'no-friends' || loadStatus === 'error' ? (
+            <View style={styles.signInPrompt}>
+              <Text style={styles.signInPromptTitle} accessibilityLiveRegion="polite">
+                {loadStatus === 'no-friends' ? 'No friends yet' : 'Could not load the leaderboard'}
+              </Text>
+              {loadStatus === 'no-friends' && (
+                <Text style={styles.signInPromptSubtitle}>
+                  Add friends to see how you rank together.
+                </Text>
+              )}
+            </View>
+          ) : rankings.length === 0 ? (
+            <View style={styles.signInPrompt}>
+              <Text style={styles.signInPromptTitle} accessibilityLiveRegion="polite">
+                No finds yet
+              </Text>
+              <Text style={styles.signInPromptSubtitle}>
+                Log a plant to get on the leaderboard.
+              </Text>
             </View>
           ) : (
             <View style={styles.listContent} onLayout={e => setListTop(e.nativeEvent.layout.y)}>
@@ -273,7 +348,7 @@ export default function Friends() {
         </View>
       </ScrollView>
 
-      {signedIn && currentUserRank && (renderedRank === undefined || (rowTop !== null && rowOffscreen)) && (
+      {signedIn && loadStatus === 'ready' && currentUserRank && (renderedRank === undefined || (rowTop !== null && rowOffscreen)) && (
         <View style={styles.pinnedRow}>
           <LeaderboardRow entry={currentUserRank} pinned />
         </View>
@@ -294,12 +369,15 @@ const styles = StyleSheet.create({
     boxShadow: '0 4px 4px rgba(0,0,0,0.25)',
   },
   titleText: { ...HifiType.title, fontSize: 28, color: 'white' },
+  audienceToggle: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginLeft: 7, marginTop: 8 },
   filterPill: {
-    marginLeft: 7, marginTop: 8, width: 174, minHeight: 38, borderRadius: 20,
+    paddingHorizontal: 18, minHeight: 38, borderRadius: 20,
     justifyContent: 'center', alignItems: 'center', backgroundColor: HifiColors.inputBorder,
     boxShadow: '0 4px 4px rgba(0,0,0,0.25)',
   },
+  selectedFilterPill: { backgroundColor: HifiColors.titleBadge },
   filterText: { ...HifiType.button, fontSize: 18, color: HifiColors.heading },
+  selectedFilterText: { color: 'white' },
   listContent: { paddingHorizontal: 12, paddingBottom: 100, gap: 8 },
   signInPrompt: { paddingHorizontal: 24, paddingVertical: 40, alignItems: 'center', gap: 12 },
   signInPromptTitle: { ...HifiType.title, fontSize: 22, color: HifiColors.heading },
