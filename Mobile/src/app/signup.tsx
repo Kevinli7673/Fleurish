@@ -6,6 +6,7 @@ import { AuthField, AuthPage, SocialSignIn, authText } from '@/components/auth-f
 import { PillButton } from '@/components/pill-button';
 import { supabase } from '@/lib/supabase';
 import { signInWithProvider, type OAuthProvider } from '@/lib/auth';
+import { USERNAME_TAKEN_MESSAGE, validateUsername } from '@/lib/username';
 
 export default function Signup() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [oauthPending, setOauthPending] = useState<OAuthProvider | null>(null);
 
@@ -34,44 +36,53 @@ export default function Signup() {
   async function handleSignUp() {
     setError(null);
 
-    const trimmedUsername = username.trim();
-    if (!trimmedUsername) {
-      setError('Please choose a username.');
-      return;
-    }
+    const validationError = validateUsername(username);
+    setUsernameError(validationError);
+    if (validationError) return;
 
     setLoading(true);
+    try {
+      const { data: available, error: availabilityError } = await supabase
+        .rpc('username_available', { name: username });
+      if (availabilityError) {
+        setUsernameError('Could not check username availability. Try again.');
+        return;
+      }
+      if (!available) {
+        setUsernameError(USERNAME_TAKEN_MESSAGE);
+        return;
+      }
 
-    const { data: existing } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('username', trimmedUsername)
-      .maybeSingle();
-    if (existing) {
-      setLoading(false);
-      setError('That username is already taken.');
-      return;
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          username: trimmedUsername,
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName, username },
         },
-      },
-    });
-    setLoading(false);
+      });
 
-    if (error) {
-      setError(error.message);
-      return;
-    }
+      if (error) {
+        if (error.code === '23505') {
+          setUsernameError(USERNAME_TAKEN_MESSAGE);
+          return;
+        }
+        // Auth wraps database trigger errors. Check whether signup lost a race for the username.
+        if (error.code === 'unexpected_failure') {
+          const { data: stillAvailable } = await supabase.rpc('username_available', { name: username });
+          if (stillAvailable === false) {
+            setUsernameError(USERNAME_TAKEN_MESSAGE);
+            return;
+          }
+        }
+        setError(error.message);
+        return;
+      }
 
-    if (data.user) {
-      router.push({ pathname: '/verify', params: { email } });
+      if (data.user) {
+        router.push({ pathname: '/verify', params: { email } });
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -85,7 +96,13 @@ export default function Signup() {
           </View>
           <View style={styles.identityField}>
             <AuthField label="Username" icon="username" placeholder="Choose username"
-              value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} />
+              value={username} onChangeText={value => {
+                setUsername(value);
+                setUsernameError(null);
+              }} editable={!loading} autoCapitalize="none" autoCorrect={false} />
+            {usernameError && (
+              <Text accessibilityRole="alert" style={[authText.body, authText.error]}>{usernameError}</Text>
+            )}
           </View>
         </View>
         <AuthField label="Email" icon="email" placeholder="Enter your email"

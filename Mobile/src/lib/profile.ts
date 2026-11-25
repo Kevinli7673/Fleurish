@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { decode } from 'base64-arraybuffer';
 
 import { supabase } from '@/lib/supabase';
+import { UsernameTakenError } from '@/lib/username';
 
 export type Profile = {
   id: string;
@@ -97,7 +98,7 @@ export async function updateProfile(changes: { username?: string; bio?: string; 
   const { error } = await supabase.from('profiles').update(changes).eq('id', myId);
   if (error) {
     // 23505 = unique violation on username
-    if (error.code === '23505') throw new Error('That username is already taken.');
+    if (error.code === '23505') throw new UsernameTakenError();
     throw new Error('Could not update your profile.');
   }
 }
